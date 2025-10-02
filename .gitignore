@@ -1,0 +1,7 @@
+.idea
+.dart_tool
+
+pubspec.lock
+build
+*.iml
+analysis_options.yaml
