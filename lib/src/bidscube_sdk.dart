@@ -13,7 +13,7 @@ class BidscubeSDK {
   static SDKConfig? _config;
 
   /// Initialize the BidsCube SDK
-  /// 
+  ///
   /// [config] - SDK configuration object
   static Future<void> initialize({required SDKConfig config}) async {
     _config = config;
@@ -28,7 +28,7 @@ class BidscubeSDK {
   static SDKConfig? get config => _config;
 
   /// Get Image Ad View
-  /// 
+  ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
   static Future<Widget> getImageAdView(
@@ -40,7 +40,7 @@ class BidscubeSDK {
   }
 
   /// Get Video Ad View
-  /// 
+  ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
   static Future<Widget> getVideoAdView(
@@ -52,7 +52,7 @@ class BidscubeSDK {
   }
 
   /// Get Native Ad View
-  /// 
+  ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
   static Future<Widget> getNativeAdView(
@@ -64,7 +64,7 @@ class BidscubeSDK {
   }
 
   /// Get Banner Ad View
-  /// 
+  ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
   static Future<Widget> getBannerAdView(
@@ -76,7 +76,7 @@ class BidscubeSDK {
   }
 
   /// Request Ad
-  /// 
+  ///
   /// [placementId] - Unique placement identifier
   /// [adType] - Type of ad to request
   /// [position] - Ad position
@@ -97,7 +97,7 @@ class BidscubeSDK {
   }
 
   /// Set Ad Callback
-  /// 
+  ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
   static Future<void> setAdCallback(
@@ -109,11 +109,72 @@ class BidscubeSDK {
   }
 
   /// Remove Ad Callback
-  /// 
+  ///
   /// [placementId] - Unique placement identifier
   static Future<void> removeAdCallback(String placementId) async {
     _checkInitialized();
     await _platform.removeAdCallback(placementId);
+  }
+
+  /// Check if consent is required
+  static bool isConsentRequired() {
+    _checkInitialized();
+    return _platform.isConsentRequired();
+  }
+
+  /// Check if ads consent is granted
+  static bool hasAdsConsent() {
+    _checkInitialized();
+    return _platform.hasAdsConsent();
+  }
+
+  /// Check if analytics consent is granted
+  static bool hasAnalyticsConsent() {
+    _checkInitialized();
+    return _platform.hasAnalyticsConsent();
+  }
+
+  /// Request consent info update
+  ///
+  /// [callback] - Consent callback handler
+  static Future<void> requestConsentInfoUpdate({AdCallback? callback}) async {
+    _checkInitialized();
+    await _platform.requestConsentInfoUpdate(callback: callback);
+  }
+
+  /// Show consent form
+  ///
+  /// [callback] - Consent callback handler
+  static Future<void> showConsentForm({AdCallback? callback}) async {
+    _checkInitialized();
+    await _platform.showConsentForm(callback: callback);
+  }
+
+  /// Get consent status summary
+  static String getConsentStatusSummary() {
+    _checkInitialized();
+    return _platform.getConsentStatusSummary();
+  }
+
+  /// Enable consent debug mode
+  ///
+  /// [testDeviceId] - Test device ID for debugging
+  static void enableConsentDebugMode(String testDeviceId) {
+    _checkInitialized();
+    _platform.enableConsentDebugMode(testDeviceId);
+  }
+
+  /// Reset consent information
+  static void resetConsent() {
+    _checkInitialized();
+    _platform.resetConsent();
+  }
+
+  /// Cleanup SDK
+  static void cleanup() {
+    _platform.cleanup();
+    _isInitialized = false;
+    _config = null;
   }
 
   /// Check if SDK is initialized

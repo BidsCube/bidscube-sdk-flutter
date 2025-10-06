@@ -23,16 +23,19 @@ class MethodChannelBidscube extends BidscubePlatform {
   }
 
   @override
-  Future<Widget> getImageAdView(String placementId, AdCallback? callback) async {
+  Future<Widget> getImageAdView(
+    String placementId,
+    AdCallback? callback,
+  ) async {
     try {
       final result = await _channel.invokeMethod('getImageAdView', {
         'placementId': placementId,
       });
-      
+
       if (callback != null) {
         _setCallback(placementId, callback);
       }
-      
+
       return _createAdWidget(result, placementId, callback);
     } on PlatformException catch (e) {
       SDKLogger.error('Failed to get image ad view', e);
@@ -41,16 +44,19 @@ class MethodChannelBidscube extends BidscubePlatform {
   }
 
   @override
-  Future<Widget> getVideoAdView(String placementId, AdCallback? callback) async {
+  Future<Widget> getVideoAdView(
+    String placementId,
+    AdCallback? callback,
+  ) async {
     try {
       final result = await _channel.invokeMethod('getVideoAdView', {
         'placementId': placementId,
       });
-      
+
       if (callback != null) {
         _setCallback(placementId, callback);
       }
-      
+
       return _createAdWidget(result, placementId, callback);
     } on PlatformException catch (e) {
       SDKLogger.error('Failed to get video ad view', e);
@@ -59,16 +65,19 @@ class MethodChannelBidscube extends BidscubePlatform {
   }
 
   @override
-  Future<Widget> getNativeAdView(String placementId, AdCallback? callback) async {
+  Future<Widget> getNativeAdView(
+    String placementId,
+    AdCallback? callback,
+  ) async {
     try {
       final result = await _channel.invokeMethod('getNativeAdView', {
         'placementId': placementId,
       });
-      
+
       if (callback != null) {
         _setCallback(placementId, callback);
       }
-      
+
       return _createAdWidget(result, placementId, callback);
     } on PlatformException catch (e) {
       SDKLogger.error('Failed to get native ad view', e);
@@ -77,16 +86,19 @@ class MethodChannelBidscube extends BidscubePlatform {
   }
 
   @override
-  Future<Widget> getBannerAdView(String placementId, AdCallback? callback) async {
+  Future<Widget> getBannerAdView(
+    String placementId,
+    AdCallback? callback,
+  ) async {
     try {
       final result = await _channel.invokeMethod('getBannerAdView', {
         'placementId': placementId,
       });
-      
+
       if (callback != null) {
         _setCallback(placementId, callback);
       }
-      
+
       return _createAdWidget(result, placementId, callback);
     } on PlatformException catch (e) {
       SDKLogger.error('Failed to get banner ad view', e);
@@ -107,7 +119,7 @@ class MethodChannelBidscube extends BidscubePlatform {
         'adType': adType.value,
         'position': position.value,
       });
-      
+
       if (callback != null) {
         _setCallback(placementId, callback);
       }
@@ -131,6 +143,120 @@ class MethodChannelBidscube extends BidscubePlatform {
     } on PlatformException catch (e) {
       SDKLogger.error('Failed to remove ad callback', e);
       rethrow;
+    }
+  }
+
+  @override
+  bool isConsentRequired() {
+    try {
+      // For now, return a default value. In a real implementation,
+      // this would call the native platform
+      return false;
+    } catch (e) {
+      SDKLogger.error('Failed to check consent required', e);
+      return false;
+    }
+  }
+
+  @override
+  bool hasAdsConsent() {
+    try {
+      // For now, return a default value. In a real implementation,
+      // this would call the native platform
+      return true;
+    } catch (e) {
+      SDKLogger.error('Failed to check ads consent', e);
+      return false;
+    }
+  }
+
+  @override
+  bool hasAnalyticsConsent() {
+    try {
+      // For now, return a default value. In a real implementation,
+      // this would call the native platform
+      return true;
+    } catch (e) {
+      SDKLogger.error('Failed to check analytics consent', e);
+      return false;
+    }
+  }
+
+  @override
+  Future<void> requestConsentInfoUpdate({AdCallback? callback}) async {
+    try {
+      await _channel.invokeMethod('requestConsentInfoUpdate');
+
+      if (callback != null) {
+        // Simulate consent info update
+        callback.onAdLoading('consent_info_update');
+        callback.onAdLoaded('consent_info_update');
+      }
+    } on PlatformException catch (e) {
+      SDKLogger.error('Failed to request consent info update', e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> showConsentForm({AdCallback? callback}) async {
+    try {
+      await _channel.invokeMethod('showConsentForm');
+
+      if (callback != null) {
+        // Simulate consent form shown and granted
+        callback.onAdLoading('consent_form');
+        callback.onAdLoaded('consent_form');
+        callback.onAdDisplayed('consent_form');
+      }
+    } on PlatformException catch (e) {
+      SDKLogger.error('Failed to show consent form', e);
+      rethrow;
+    }
+  }
+
+  @override
+  String getConsentStatusSummary() {
+    try {
+      // For now, return a default summary. In a real implementation,
+      // this would call the native platform
+      return "required=false, ads=true, analytics=true";
+    } catch (e) {
+      SDKLogger.error('Failed to get consent status summary', e);
+      return "required=false, ads=false, analytics=false";
+    }
+  }
+
+  @override
+  void enableConsentDebugMode(String testDeviceId) {
+    try {
+      // For now, just log. In a real implementation,
+      // this would call the native platform
+      SDKLogger.info('Consent debug mode enabled for device: $testDeviceId');
+    } catch (e) {
+      SDKLogger.error('Failed to enable consent debug mode', e);
+    }
+  }
+
+  @override
+  void resetConsent() {
+    try {
+      // For now, just log. In a real implementation,
+      // this would call the native platform
+      SDKLogger.info('Consent information reset');
+    } catch (e) {
+      SDKLogger.error('Failed to reset consent', e);
+    }
+  }
+
+  @override
+  void cleanup() {
+    try {
+      // For now, just log. In a real implementation,
+      // this would call the native platform
+      SDKLogger.info('SDK cleanup completed');
+    } catch (e) {
+      SDKLogger.error('Failed to cleanup SDK', e);
     }
   }
 
@@ -172,16 +298,18 @@ class MethodChannelBidscube extends BidscubePlatform {
     });
   }
 
-  Widget _createAdWidget(dynamic result, String placementId, AdCallback? callback) {
+  Widget _createAdWidget(
+    dynamic result,
+    String placementId,
+    AdCallback? callback,
+  ) {
     // This is a placeholder - in a real implementation, you would create
     // platform-specific widgets based on the result
     return Container(
       width: 320,
       height: 240,
       color: Colors.grey[300],
-      child: Center(
-        child: Text('Ad View for $placementId'),
-      ),
+      child: Center(child: Text('Ad View for $placementId')),
     );
   }
 }

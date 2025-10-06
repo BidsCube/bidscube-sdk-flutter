@@ -44,7 +44,7 @@ void main() {
         'defaultAdPosition': 'footer',
         'enableTestMode': false,
       };
-      
+
       final configFromMap = SDKConfig.fromMap(map);
       expect(configFromMap.baseURL, 'https://test.api.com');
       expect(configFromMap.enableLogging, false);
@@ -74,12 +74,15 @@ void main() {
     test('DefaultAdCallback should handle all callbacks', () {
       final callback = DefaultAdCallback();
       final placementId = 'test_placement';
-      
+
       // These should not throw exceptions
       expect(() => callback.onAdLoading(placementId), returnsNormally);
       expect(() => callback.onAdLoaded(placementId), returnsNormally);
       expect(() => callback.onAdDisplayed(placementId), returnsNormally);
-      expect(() => callback.onAdFailed(placementId, 404, 'Not found'), returnsNormally);
+      expect(
+        () => callback.onAdFailed(placementId, 404, 'Not found'),
+        returnsNormally,
+      );
       expect(() => callback.onAdClicked(placementId), returnsNormally);
       expect(() => callback.onAdClosed(placementId), returnsNormally);
       expect(() => callback.onVideoAdStarted(placementId), returnsNormally);

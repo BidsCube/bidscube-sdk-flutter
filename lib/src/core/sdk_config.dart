@@ -4,19 +4,19 @@ import 'ad_position.dart';
 class SDKConfig {
   /// Base URL for API requests
   final String baseURL;
-  
+
   /// Enable console logging
   final bool enableLogging;
-  
+
   /// Enable debug mode
   final bool enableDebugMode;
-  
+
   /// Default ad timeout in milliseconds
   final int defaultAdTimeout;
-  
+
   /// Default ad position
   final AdPosition defaultAdPosition;
-  
+
   /// Enable test mode
   final bool enableTestMode;
 
@@ -62,7 +62,7 @@ class SDKConfig {
 
 /// Builder class for SDKConfig
 class SDKConfigBuilder {
-  String _baseURL = 'https://api.bidscube.com';
+  String _baseURL = 'https://localhost:3000';
   bool _enableLogging = true;
   bool _enableDebugMode = false;
   int _defaultAdTimeout = 30000;

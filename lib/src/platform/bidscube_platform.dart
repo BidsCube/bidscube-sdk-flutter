@@ -34,4 +34,31 @@ abstract class BidscubePlatform {
 
   /// Remove Ad Callback
   Future<void> removeAdCallback(String placementId);
+
+  /// Check if consent is required
+  bool isConsentRequired();
+
+  /// Check if ads consent is granted
+  bool hasAdsConsent();
+
+  /// Check if analytics consent is granted
+  bool hasAnalyticsConsent();
+
+  /// Request consent info update
+  Future<void> requestConsentInfoUpdate({AdCallback? callback});
+
+  /// Show consent form
+  Future<void> showConsentForm({AdCallback? callback});
+
+  /// Get consent status summary
+  String getConsentStatusSummary();
+
+  /// Enable consent debug mode
+  void enableConsentDebugMode(String testDeviceId);
+
+  /// Reset consent information
+  void resetConsent();
+
+  /// Cleanup SDK
+  void cleanup();
 }
