@@ -1,8 +1,9 @@
+import 'dart:developer';
+
 import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-import 'package:testapp/Core/ad_callback.dart';
 import 'package:testapp/widgets/custom_filled_button.dart';
+import 'package:testapp/core/ad_callback.dart';
 
 class SDKTestView extends StatefulWidget {
   const SDKTestView({super.key});
@@ -13,11 +14,14 @@ class SDKTestView extends StatefulWidget {
 
 class _SDKTestViewState extends State<SDKTestView> {
   bool _isInitialized = false;
-  String _selectedAdType = 'Image';
+  bool _useFlutterOnly = false;
   String _placementId = '19483';
-  String _logs = '';
   Widget? _currentAdView;
   ValueNotifier<bool> _adPositionOverrideSwitch = ValueNotifier<bool>(false);
+  String _urlBuilderDemo = '';
+  String _webViewHTML = '';
+  bool _loggingEnabled = true;
+  AdPosition _selectedPosition = AdPosition.unknown;
 
   @override
   void initState() {
@@ -27,6 +31,7 @@ class _SDKTestViewState extends State<SDKTestView> {
   Future<void> _initializeSDK() async {
     try {
       final config = SDKConfig.builder()
+          .baseURL(Constants.baseURL)
           .enableLogging(true)
           .enableDebugMode(true)
           .defaultAdTimeout(30000)
@@ -34,67 +39,87 @@ class _SDKTestViewState extends State<SDKTestView> {
           .enableTestMode(true)
           .build();
 
-      await BidscubeSDK.initialize(config: config);
+      await BidscubeSDK.initialize(
+        config: config,
+        useFlutterOnly: _useFlutterOnly,
+      );
 
-      setState(() {
-        _isInitialized = true;
+      // Use post frame callback to avoid setState during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _isInitialized = true;
+          });
+        }
       });
 
-      _addLog('SDK initialized successfully');
+      _addLog(
+        'SDK initialized successfully (${_useFlutterOnly ? "Flutter-only" : "Native"} mode)',
+      );
     } catch (e) {
       _addLog('Failed to initialize SDK: $e');
     }
   }
 
   void _addLog(String message) {
-    setState(() {
-      _logs += '${DateTime.now().toString().substring(11, 19)}: $message\n';
-    });
+    if (_loggingEnabled) {
+      log('${DateTime.now().toString().substring(11, 19)}: $message');
+    }
   }
 
-  Future<void> _loadAd() async {
+  Future<void> _loadAd(AdType adType) async {
     if (!_isInitialized) {
       _addLog('SDK not initialized');
       return;
     }
 
     try {
-      _addLog('Loading ${_selectedAdType.toLowerCase()} ad...');
+      _addLog('Loading ${adType.name} ad...');
 
-      final callback = TestAdCallback(_addLog);
+      final callback = BidscubeAdCallback(_addLog);
+      final position = _adPositionOverrideSwitch.value
+          ? _selectedPosition
+          : AdPosition.unknown;
 
       Widget adView;
-      switch (_selectedAdType) {
-        case 'Image':
+      switch (adType) {
+        case AdType.image:
           adView = await BidscubeSDK.getImageAdView(
             _placementId,
             callback: callback,
+            position: position,
           );
           break;
-        case 'Video':
+        case AdType.video:
           adView = await BidscubeSDK.getVideoAdView(
             _placementId,
             callback: callback,
+            position: position,
           );
           break;
-        case 'Native':
+        case AdType.native:
           adView = await BidscubeSDK.getNativeAdView(
             _placementId,
             callback: callback,
+            position: position,
           );
           break;
-        case 'Banner':
+        case AdType.banner:
           adView = await BidscubeSDK.getBannerAdView(
             _placementId,
             callback: callback,
+            position: position,
           );
           break;
-        default:
-          throw Exception('Unknown ad type: $_selectedAdType');
       }
 
-      setState(() {
-        _currentAdView = adView;
+      // Use post frame callback to avoid setState during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _currentAdView = adView;
+          });
+        }
       });
 
       _addLog('Ad view created successfully');
@@ -103,10 +128,34 @@ class _SDKTestViewState extends State<SDKTestView> {
     }
   }
 
-  void _clearLogs() {
-    setState(() {
-      _logs = '';
+  Future<void> _reloadAd(AdType adType) async {
+    _addLog('Reloading ${adType.name} ad...');
+    await _loadAd(adType);
+  }
+
+  void _resetSDK() {
+    _addLog('Cleaning up SDK...');
+
+    // Use post frame callback to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _isInitialized = false;
+          _currentAdView = null;
+          _urlBuilderDemo = '';
+          _webViewHTML = '';
+        });
+      }
     });
+
+    _addLog('SDK cleaned up - you can now choose a different mode');
+  }
+
+  void _toggleLogging() {
+    setState(() {
+      _loggingEnabled = !_loggingEnabled;
+    });
+    _addLog('Logging ${_loggingEnabled ? 'enabled' : 'disabled'}');
   }
 
   @override
@@ -129,32 +178,78 @@ class _SDKTestViewState extends State<SDKTestView> {
               child: Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Icon(
-                        _isInitialized ? Icons.check_circle : Icons.error,
-                        color: _isInitialized ? Colors.green : Colors.red,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _isInitialized
-                            ? 'SDK Initialized'
-                            : 'SDK Not Initialized',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const Spacer(),
-                      if (!_isInitialized)
-                        FilledButton(
-                          style: ButtonStyle(
-                            backgroundColor: WidgetStateProperty.all(
-                              const Color(0xFF006ee6),
-                            ),
+                      Row(
+                        children: [
+                          Icon(
+                            _isInitialized ? Icons.check_circle : Icons.error,
+                            color: _isInitialized ? Colors.green : Colors.red,
                           ),
-                          onPressed: () {
-                            _initializeSDK();
-                          },
-                          child: const Text('Initialize'),
+                          const SizedBox(width: 8),
+                          Text(
+                            _isInitialized
+                                ? 'SDK Initialized'
+                                : 'SDK Not Initialized',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          if (!_isInitialized)
+                            FilledButton(
+                              style: ButtonStyle(
+                                backgroundColor: WidgetStateProperty.all(
+                                  const Color(0xFF006ee6),
+                                ),
+                              ),
+                              onPressed: () {
+                                _initializeSDK();
+                              },
+                              child: const Text('Initialize'),
+                            ),
+                        ],
+                      ),
+                      if (!_isInitialized) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            const Text('Mode: '),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              label: const Text('Native'),
+                              selected: !_useFlutterOnly,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() {
+                                    _useFlutterOnly = false;
+                                  });
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              label: const Text('Flutter-Only'),
+                              selected: _useFlutterOnly,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() {
+                                    _useFlutterOnly = true;
+                                  });
+                                }
+                              },
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _useFlutterOnly
+                              ? 'Using WebView, video_player, and custom widgets (no native code)'
+                              : 'Using native iOS/Android implementations',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -162,6 +257,56 @@ class _SDKTestViewState extends State<SDKTestView> {
             ),
 
             const SizedBox(height: 16),
+
+            if (_isInitialized)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Card(
+                  color: _useFlutterOnly ? Colors.blue[50] : Colors.green[50],
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              _useFlutterOnly ? Icons.web : Icons.phone_android,
+                              color: _useFlutterOnly
+                                  ? Colors.blue
+                                  : Colors.green,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Current Mode: ${_useFlutterOnly ? "Flutter-Only" : "Native"}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: _useFlutterOnly
+                                      ? Colors.blue[800]
+                                      : Colors.green[800],
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _resetSDK,
+                              icon: const Icon(Icons.refresh),
+                              tooltip: 'Reset SDK to change mode',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _useFlutterOnly
+                              ? 'WebView + Custom Widgets'
+                              : 'Native iOS/Android',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
             if (_isInitialized)
               Padding(
@@ -197,17 +342,23 @@ class _SDKTestViewState extends State<SDKTestView> {
                       ),
                     ),
                     CustomFilledButton(
-                      onPressed: _isInitialized ? _loadAd : null,
+                      onPressed: _isInitialized
+                          ? () => _reloadAd(AdType.image)
+                          : null,
                       label: 'Banner/Image Ads',
                       color: Color(0xFF4CAF50),
                     ),
                     CustomFilledButton(
-                      onPressed: _isInitialized ? _loadAd : null,
+                      onPressed: _isInitialized
+                          ? () => _reloadAd(AdType.video)
+                          : null,
                       label: 'Video Ads',
                       color: Color(0xFF2196F3),
                     ),
                     CustomFilledButton(
-                      onPressed: _isInitialized ? _loadAd : null,
+                      onPressed: _isInitialized
+                          ? () => _reloadAd(AdType.native)
+                          : null,
                       label: 'Native Ads',
                       color: Color(0xFFFF9800),
                     ),
@@ -215,20 +366,115 @@ class _SDKTestViewState extends State<SDKTestView> {
                 ),
               ),
 
-            const SizedBox(height: 16),
+            // URL Builder Results
+            if (_urlBuilderDemo.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'URL Builder Results:',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: SingleChildScrollView(
+                            child: Text(
+                              _urlBuilderDemo,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // WebView HTML Results
+            if (_webViewHTML.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'WebView HTML Generated:',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          height: 200,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: SingleChildScrollView(
+                            child: Text(
+                              _webViewHTML,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
             if (_currentAdView != null)
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
                       'Ad View:',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    Expanded(child: Center(child: _currentAdView!)),
+                    Container(
+                      width: double.infinity,
+                      height: 250, // Fixed height for ad view
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: _currentAdView!,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -265,6 +511,7 @@ class _SDKTestViewState extends State<SDKTestView> {
                       ],
                     ),
                     CustomFilledButton(
+                      onPressed: _resetSDK,
                       label: 'Test Logging',
                       color: Colors.grey,
                     ),
@@ -289,7 +536,10 @@ class _SDKTestViewState extends State<SDKTestView> {
                       Text('Override Ad Position for Testing '),
                       Switch(
                         value: _adPositionOverrideSwitch.value,
-                        onChanged: (value) {},
+                        onChanged: (value) {
+                          _adPositionOverrideSwitch.value = value;
+                          setState(() {});
+                        },
                       ),
                     ],
                   ),
@@ -302,7 +552,64 @@ class _SDKTestViewState extends State<SDKTestView> {
                             fontWeight: FontWeight.w400,
                           ),
                         )
-                      : SizedBox.shrink(),
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 8),
+                            Text(
+                              'Select Ad Position:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white,
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<AdPosition>(
+                                  value: _selectedPosition,
+                                  isExpanded: true,
+                                  items: AdPosition.values.map((
+                                    AdPosition position,
+                                  ) {
+                                    return DropdownMenuItem<AdPosition>(
+                                      value: position,
+                                      child: Text(
+                                        position.value,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (AdPosition? newValue) {
+                                    if (newValue != null) {
+                                      setState(() {
+                                        _selectedPosition = newValue;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Selected: ${_selectedPosition.value}',
+                              style: TextStyle(
+                                color: Colors.blue[600],
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
                 ],
               ),
             ),

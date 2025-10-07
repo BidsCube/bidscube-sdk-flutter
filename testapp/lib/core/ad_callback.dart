@@ -1,10 +1,9 @@
-
 import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 
-class TestAdCallback implements AdCallback {
+class BidscubeAdCallback implements AdCallback {
   final Function(String) _addLog;
 
-  TestAdCallback(this._addLog);
+  BidscubeAdCallback(this._addLog);
 
   @override
   void onAdLoading(String placementId) {
@@ -22,7 +21,7 @@ class TestAdCallback implements AdCallback {
   }
 
   @override
-  void onAdFailed(String placementId, int errorCode, String errorMessage) {
+  void onAdFailed(String placementId, String errorCode, String errorMessage) {
     _addLog('Ad failed: $placementId - $errorMessage (Code: $errorCode)');
   }
 

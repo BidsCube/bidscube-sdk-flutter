@@ -10,16 +10,32 @@ abstract class BidscubePlatform {
   Future<void> initialize({required SDKConfig config});
 
   /// Get Image Ad View
-  Future<Widget> getImageAdView(String placementId, AdCallback? callback);
+  Future<Widget> getImageAdView(
+    String placementId,
+    AdCallback? callback,
+    AdPosition position,
+  );
 
   /// Get Video Ad View
-  Future<Widget> getVideoAdView(String placementId, AdCallback? callback);
+  Future<Widget> getVideoAdView(
+    String placementId,
+    AdCallback? callback,
+    AdPosition position,
+  );
 
   /// Get Native Ad View
-  Future<Widget> getNativeAdView(String placementId, AdCallback? callback);
+  Future<Widget> getNativeAdView(
+    String placementId,
+    AdCallback? callback,
+    AdPosition position,
+  );
 
   /// Get Banner Ad View
-  Future<Widget> getBannerAdView(String placementId, AdCallback? callback);
+  Future<Widget> getBannerAdView(
+    String placementId,
+    AdCallback? callback,
+    AdPosition position,
+  );
 
   /// Request Ad
   Future<void> requestAd({

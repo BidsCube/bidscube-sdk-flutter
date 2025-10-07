@@ -5,18 +5,32 @@ import 'core/ad_type.dart';
 import 'core/ad_position.dart';
 import 'platform/bidscube_platform.dart';
 import 'platform/method_channel_bidscube.dart';
+import 'platform/flutter_only_bidscube.dart';
 
 /// Main BidsCube SDK class for Flutter
 class BidscubeSDK {
   static BidscubePlatform _platform = MethodChannelBidscube();
   static bool _isInitialized = false;
   static SDKConfig? _config;
+  static bool _useFlutterOnly = false;
 
   /// Initialize the BidsCube SDK
   ///
   /// [config] - SDK configuration object
-  static Future<void> initialize({required SDKConfig config}) async {
+  /// [useFlutterOnly] - Use Flutter-only implementation (no native code)
+  static Future<void> initialize({
+    required SDKConfig config,
+    bool useFlutterOnly = false,
+  }) async {
     _config = config;
+    _useFlutterOnly = useFlutterOnly;
+
+    if (useFlutterOnly) {
+      _platform = FlutterOnlyBidscube();
+    } else {
+      _platform = MethodChannelBidscube();
+    }
+
     await _platform.initialize(config: config);
     _isInitialized = true;
   }
@@ -27,52 +41,63 @@ class BidscubeSDK {
   /// Get current SDK configuration
   static SDKConfig? get config => _config;
 
+  /// Check if using Flutter-only mode
+  static bool get isFlutterOnly => _useFlutterOnly;
+
   /// Get Image Ad View
   ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
+  /// [position] - Ad position override
   static Future<Widget> getImageAdView(
     String placementId, {
     AdCallback? callback,
+    AdPosition position = AdPosition.unknown,
   }) async {
     _checkInitialized();
-    return await _platform.getImageAdView(placementId, callback);
+    return await _platform.getImageAdView(placementId, callback, position);
   }
 
   /// Get Video Ad View
   ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
+  /// [position] - Ad position override
   static Future<Widget> getVideoAdView(
     String placementId, {
     AdCallback? callback,
+    AdPosition position = AdPosition.unknown,
   }) async {
     _checkInitialized();
-    return await _platform.getVideoAdView(placementId, callback);
+    return await _platform.getVideoAdView(placementId, callback, position);
   }
 
   /// Get Native Ad View
   ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
+  /// [position] - Ad position override
   static Future<Widget> getNativeAdView(
     String placementId, {
     AdCallback? callback,
+    AdPosition position = AdPosition.unknown,
   }) async {
     _checkInitialized();
-    return await _platform.getNativeAdView(placementId, callback);
+    return await _platform.getNativeAdView(placementId, callback, position);
   }
 
   /// Get Banner Ad View
   ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
+  /// [position] - Ad position override
   static Future<Widget> getBannerAdView(
     String placementId, {
     AdCallback? callback,
+    AdPosition position = AdPosition.unknown,
   }) async {
     _checkInitialized();
-    return await _platform.getBannerAdView(placementId, callback);
+    return await _platform.getBannerAdView(placementId, callback, position);
   }
 
   /// Request Ad

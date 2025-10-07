@@ -26,10 +26,12 @@ class MethodChannelBidscube extends BidscubePlatform {
   Future<Widget> getImageAdView(
     String placementId,
     AdCallback? callback,
+    AdPosition position,
   ) async {
     try {
       final result = await _channel.invokeMethod('getImageAdView', {
         'placementId': placementId,
+        'position': position.value,
       });
 
       if (callback != null) {
@@ -47,10 +49,12 @@ class MethodChannelBidscube extends BidscubePlatform {
   Future<Widget> getVideoAdView(
     String placementId,
     AdCallback? callback,
+    AdPosition position,
   ) async {
     try {
       final result = await _channel.invokeMethod('getVideoAdView', {
         'placementId': placementId,
+        'position': position.value,
       });
 
       if (callback != null) {
@@ -68,10 +72,12 @@ class MethodChannelBidscube extends BidscubePlatform {
   Future<Widget> getNativeAdView(
     String placementId,
     AdCallback? callback,
+    AdPosition position,
   ) async {
     try {
       final result = await _channel.invokeMethod('getNativeAdView', {
         'placementId': placementId,
+        'position': position.value,
       });
 
       if (callback != null) {
@@ -89,10 +95,12 @@ class MethodChannelBidscube extends BidscubePlatform {
   Future<Widget> getBannerAdView(
     String placementId,
     AdCallback? callback,
+    AdPosition position,
   ) async {
     try {
       final result = await _channel.invokeMethod('getBannerAdView', {
         'placementId': placementId,
+        'position': position.value,
       });
 
       if (callback != null) {

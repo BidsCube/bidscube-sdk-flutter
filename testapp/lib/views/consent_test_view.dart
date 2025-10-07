@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
-import 'package:testapp/Core/ad_callback.dart';
+import 'package:testapp/core/ad_callback.dart';
 import 'package:testapp/widgets/custom_filled_button.dart';
 
 class ConsentTestView extends StatefulWidget {
@@ -63,14 +63,14 @@ class _ConsentTestViewState extends State<ConsentTestView> {
     if (!_isInitialized) return;
     _addLog("Requesting consent info update...");
     // TODO: Add callback handling
-    BidscubeSDK.requestConsentInfoUpdate(callback: TestAdCallback(_addLog));
+    BidscubeSDK.requestConsentInfoUpdate(callback: BidscubeAdCallback(_addLog));
   }
 
   void _showConsentForm() {
     if (!_isInitialized) return;
     _addLog("Showing consent form...");
     // TODO: Add callback handling
-    BidscubeSDK.showConsentForm(callback: TestAdCallback(_addLog));
+    BidscubeSDK.showConsentForm(callback: BidscubeAdCallback(_addLog));
   }
 
   void _checkConsentRequired() {
@@ -113,7 +113,7 @@ class _ConsentTestViewState extends State<ConsentTestView> {
       return;
     }
     _addLog("Showing image ad...");
-    final callback = TestAdCallback(_addLog);
+    final callback = BidscubeAdCallback(_addLog);
     final adView = await BidscubeSDK.getImageAdView(
       _placementId,
       callback: callback,
@@ -129,7 +129,7 @@ class _ConsentTestViewState extends State<ConsentTestView> {
       return;
     }
     _addLog("Showing video ad...");
-    final callback = TestAdCallback(_addLog);
+    final callback = BidscubeAdCallback(_addLog);
     final adView = await BidscubeSDK.getVideoAdView(
       _placementId,
       callback: callback,
@@ -145,7 +145,7 @@ class _ConsentTestViewState extends State<ConsentTestView> {
       return;
     }
     _addLog("Showing native ad...");
-    final callback = TestAdCallback(_addLog);
+    final callback = BidscubeAdCallback(_addLog);
     final adView = await BidscubeSDK.getNativeAdView(
       _placementId,
       callback: callback,

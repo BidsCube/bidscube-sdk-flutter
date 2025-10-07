@@ -10,7 +10,7 @@ abstract class AdCallback {
   void onAdDisplayed(String placementId);
 
   /// Called when ad fails to load or display
-  void onAdFailed(String placementId, int errorCode, String errorMessage);
+  void onAdFailed(String placementId, String errorCode, String errorMessage);
 
   /// Called when ad is clicked
   void onAdClicked(String placementId);
@@ -46,7 +46,7 @@ class DefaultAdCallback implements AdCallback {
   }
 
   @override
-  void onAdFailed(String placementId, int errorCode, String errorMessage) {
+  void onAdFailed(String placementId, String errorCode, String errorMessage) {
     print('Ad failed: $placementId - $errorMessage (Code: $errorCode)');
   }
 
