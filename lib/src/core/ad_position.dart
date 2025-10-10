@@ -17,7 +17,7 @@ enum AdPosition {
   fullScreen,
 }
 
-/// Extension for AdPosition to get string representation
+/// Extension for AdPosition to get string representation and create from value
 extension AdPositionExtension on AdPosition {
   /// Get string representation of ad position
   String get value {
@@ -38,6 +38,30 @@ extension AdPositionExtension on AdPosition {
         return '6 - SIDEBAR';
       case AdPosition.fullScreen:
         return '7 - FULLSCREEN';
+    }
+  }
+
+  /// Create AdPosition from integer value
+  static AdPosition fromValue(int value) {
+    switch (value) {
+      case 0:
+        return AdPosition.unknown;
+      case 1:
+        return AdPosition.aboveTheFold;
+      case 2:
+        return AdPosition.dependOnTheScreenSize;
+      case 3:
+        return AdPosition.belowTheFold;
+      case 4:
+        return AdPosition.header;
+      case 5:
+        return AdPosition.footer;
+      case 6:
+        return AdPosition.sidebar;
+      case 7:
+        return AdPosition.fullScreen;
+      default:
+        return AdPosition.unknown;
     }
   }
 }

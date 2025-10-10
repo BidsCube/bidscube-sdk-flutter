@@ -5,23 +5,23 @@ import '../core/callbacks.dart';
 class VideoAdView extends StatefulWidget {
   /// Placement ID for the ad
   final String placementId;
-  
+
   /// Ad callback handler
   final AdCallback? callback;
-  
+
   /// Ad width
   final double width;
-  
+
   /// Ad height
   final double height;
 
   const VideoAdView({
-    Key? key,
+    super.key,
     required this.placementId,
     this.callback,
     this.width = 320,
     this.height = 240,
-  }) : super(key: key);
+  });
 
   @override
   State<VideoAdView> createState() => _VideoAdViewState();
@@ -30,7 +30,6 @@ class VideoAdView extends StatefulWidget {
 class _VideoAdViewState extends State<VideoAdView> {
   bool _isLoading = true;
   bool _hasError = false;
-  bool _isPlaying = false;
   String? _errorMessage;
 
   @override
@@ -41,39 +40,22 @@ class _VideoAdViewState extends State<VideoAdView> {
 
   void _loadAd() {
     widget.callback?.onAdLoading(widget.placementId);
-    
-    // Simulate ad loading
+
+    // Simulate ad loading failure to show error placeholder
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _hasError = true;
+          _errorMessage = 'Ad not loaded or placement ID does not exist';
         });
-        widget.callback?.onAdLoaded(widget.placementId);
-        widget.callback?.onAdDisplayed(widget.placementId);
+        widget.callback?.onAdFailed(
+          widget.placementId,
+          'LOAD_ERROR',
+          'Ad not loaded or placement ID does not exist',
+        );
       }
     });
-  }
-
-  void _handleAdClick() {
-    widget.callback?.onAdClicked(widget.placementId);
-  }
-
-  void _playVideo() {
-    setState(() {
-      _isPlaying = true;
-    });
-    widget.callback?.onVideoAdStarted(widget.placementId);
-    
-    // Simulate video completion
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) {
-        widget.callback?.onVideoAdCompleted(widget.placementId);
-      }
-    });
-  }
-
-  void _skipVideo() {
-    widget.callback?.onVideoAdSkipped(widget.placementId);
   }
 
   @override
@@ -88,63 +70,22 @@ class _VideoAdViewState extends State<VideoAdView> {
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _hasError
-              ? Center(
-                  child: Text(
-                    _errorMessage ?? 'Ad failed to load',
-                    style: const TextStyle(color: Colors.red),
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.block, color: Colors.grey, size: 48),
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage ??
+                        'Ad not loaded or placement ID does not exist',
+                    style: const TextStyle(color: Colors.grey),
+                    textAlign: TextAlign.center,
                   ),
-                )
-              : GestureDetector(
-                  onTap: _handleAdClick,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.purple[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                _isPlaying ? Icons.play_circle : Icons.video_library,
-                                size: 48,
-                                color: Colors.purple,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _isPlaying ? 'Playing Video Ad' : 'Video Ad',
-                                style: const TextStyle(
-                                  color: Colors.purple,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (!_isPlaying)
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.play_arrow),
-                                  onPressed: _playVideo,
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.skip_next),
-                                  onPressed: _skipVideo,
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
+                ],
+              ),
+            )
+          : const Center(child: Text('No ad content available')),
     );
   }
 }

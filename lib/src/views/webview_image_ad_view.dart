@@ -3,10 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../core/callbacks.dart';
-import '../core/url_builder.dart';
-import '../core/ad_type.dart';
-import '../core/ad_position.dart';
 
 /// WebView-based Image Ad View Widget
 /// Renders image ads using WebView without native code dependencies
@@ -23,25 +19,25 @@ class WebViewImageAdView extends StatefulWidget {
   /// Ad height
   final double height;
 
-  /// Base URL for ad requests
-  final String baseUrl;
-
   /// Ad type for URL building
   final AdType adType;
 
   /// Ad position for URL building
   final AdPosition position;
 
+  /// Position change callback
+  final Function(AdPosition)? onPositionChanged;
+
   const WebViewImageAdView({
-    Key? key,
+    super.key,
     required this.placementId,
     this.callback,
     this.width = 320,
     this.height = 240,
-    this.baseUrl = 'https://api.bidscube.com',
     this.adType = AdType.image,
     this.position = AdPosition.unknown,
-  }) : super(key: key);
+    this.onPositionChanged,
+  });
 
   @override
   State<WebViewImageAdView> createState() => _WebViewImageAdViewState();
@@ -51,12 +47,13 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
   late WebViewController _controller;
   bool _isLoading = true;
   bool _hasError = false;
-  String? _errorMessage;
   String? _adClickUrl;
+  AdPosition _currentPosition = AdPosition.unknown;
 
   @override
   void initState() {
     super.initState();
+    _currentPosition = widget.position;
     _initializeWebView();
     _loadAd();
   }
@@ -76,7 +73,6 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
           onWebResourceError: (WebResourceError error) {
             setState(() {
               _hasError = true;
-              _errorMessage = error.description;
               _isLoading = false;
             });
             widget.callback?.onAdFailed(
@@ -93,7 +89,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
     widget.callback?.onAdLoading(widget.placementId);
 
     try {
-      // First, request the actual ad data from the API
+      // Request the actual ad data from the API
       final adData = await _requestAd();
 
       if (adData != null && adData['adm'] != null) {
@@ -101,26 +97,12 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
         final htmlContent = _createAdHTML(adData);
         await _controller.loadHtmlString(htmlContent);
       } else {
-        // Fallback: Use URL Builder to create a demo ad
-        final htmlContent = await URLBuilder.buildWebViewURL(
-          placementId: widget.placementId,
-          adType: widget.adType,
-          position: widget.position,
-          baseURL: widget.baseUrl,
-        );
-
-        if (htmlContent != null) {
-          await _controller.loadHtmlString(htmlContent);
-        } else {
-          // Final fallback: Show a simple demo ad
-          final demoAd = _createDemoAdHTML();
-          await _controller.loadHtmlString(demoAd);
-        }
+        // No ad available - show error placeholder
+        throw Exception('Ad not loaded or placement ID does not exist');
       }
     } catch (e) {
       setState(() {
         _hasError = true;
-        _errorMessage = e.toString();
         _isLoading = false;
       });
       widget.callback?.onAdFailed(
@@ -138,7 +120,6 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
         placementId: widget.placementId,
         adType: widget.adType,
         position: widget.position,
-        baseURL: widget.baseUrl,
       );
 
       if (apiURL == null) {
@@ -152,7 +133,28 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
         final contentType = response.headers['content-type'] ?? '';
         if (contentType.contains('application/json')) {
           try {
-            return json.decode(response.body);
+            final data = json.decode(response.body);
+
+            // Extract position from server response if available
+            if (data['position'] != null) {
+              final positionValue = data['position'] as int;
+              final serverPosition = AdPositionExtension.fromValue(
+                positionValue,
+              );
+              SDKLogger.info('Position: ${serverPosition.value}');
+
+              // Update current position and trigger re-render
+              if (mounted) {
+                setState(() {
+                  _currentPosition = serverPosition;
+                });
+              }
+
+              // Notify parent widget about position change
+              widget.onPositionChanged?.call(serverPosition);
+            }
+
+            return data;
           } catch (e) {
             throw Exception('Invalid JSON response: ${e.toString()}');
           }
@@ -167,14 +169,8 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       }
     } catch (e) {
       SDKLogger.error('Failed to load ad', e);
-      // For demo purposes, return mock data
-      return {
-        'adm':
-            'https://via.placeholder.com/320x240/4CAF50/FFFFFF?text=Image+Ad',
-        'clickUrl': 'https://example.com',
-        'title': 'Sample Ad',
-        'description': 'This is a sample image ad',
-      };
+      // Re-throw the error instead of returning mock data
+      rethrow;
     }
   }
 
@@ -334,92 +330,6 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
     }
   }
 
-  String _createDemoAdHTML() {
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body {
-                margin: 0;
-                padding: 0;
-                width: 100%;
-                height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                font-family: Arial, sans-serif;
-            }
-            .ad-container {
-                width: 100%;
-                height: 100%;
-                position: relative;
-                cursor: pointer;
-                border-radius: 8px;
-                overflow: hidden;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            }
-            .ad-image {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                transition: transform 0.3s ease;
-            }
-            .ad-overlay {
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                background: linear-gradient(transparent, rgba(0,0,0,0.7));
-                color: white;
-                padding: 20px;
-                text-align: center;
-            }
-            .ad-title {
-                font-size: 18px;
-                font-weight: bold;
-                margin-bottom: 5px;
-            }
-            .ad-description {
-                font-size: 14px;
-                opacity: 0.9;
-            }
-            .ad-container:hover .ad-image {
-                transform: scale(1.05);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="ad-container" onclick="handleAdClick()">
-            <img src="https://via.placeholder.com/320x240/4CAF50/FFFFFF?text=Demo+Ad" 
-                 alt="Demo Ad" 
-                 class="ad-image">
-            <div class="ad-overlay">
-                <div class="ad-title">Demo Advertisement</div>
-                <div class="ad-description">This is a demo ad for testing</div>
-            </div>
-        </div>
-        
-        <script>
-            function handleAdClick() {
-                // Notify Flutter about the click
-                if (window.flutter_inappwebview) {
-                    window.flutter_inappwebview.callHandler('onAdClick', {
-                        placementId: '${widget.placementId}'
-                    });
-                }
-                
-                // Open demo URL
-                window.open('https://example.com', '_blank');
-            }
-        </script>
-    </body>
-    </html>
-    ''';
-  }
-
   void _handleAdClick() {
     widget.callback?.onAdClicked(widget.placementId);
     if (_adClickUrl != null) {
@@ -428,14 +338,127 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
     }
   }
 
+  BidscubePositionStyle _getPositionBasedStyle() {
+    switch (_currentPosition) {
+      case AdPosition.unknown:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.white,
+          borderRadius: 8.0,
+          border: Border.all(color: Colors.grey[300]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(26),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+      case AdPosition.aboveTheFold:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.blue[50]!,
+          borderRadius: 12.0,
+          border: Border.all(color: Colors.blue[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withAlpha(51),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        );
+      case AdPosition.belowTheFold:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.green[50]!,
+          borderRadius: 10.0,
+          border: Border.all(color: Colors.green[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.withAlpha(51),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+      case AdPosition.header:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.orange[50]!,
+          borderRadius: 6.0,
+          border: Border.all(color: Colors.orange[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withAlpha(51),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+      case AdPosition.footer:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.purple[50]!,
+          borderRadius: 6.0,
+          border: Border.all(color: Colors.purple[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withAlpha(51),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+      case AdPosition.sidebar:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.teal[50]!,
+          borderRadius: 8.0,
+          border: Border.all(color: Colors.teal[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.teal.withAlpha(51),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+      case AdPosition.fullScreen:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.red[50]!,
+          borderRadius: 16.0,
+          border: Border.all(color: Colors.red[200]!, width: 3),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withAlpha(77),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        );
+      case AdPosition.dependOnTheScreenSize:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.amber[50]!,
+          borderRadius: 10.0,
+          border: Border.all(color: Colors.amber[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.amber.withAlpha(51),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final positionStyle = _getPositionBasedStyle();
+
     return Container(
       width: widget.width,
       height: widget.height,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
+        color: positionStyle.backgroundColor,
+        border: positionStyle.border,
+        borderRadius: BorderRadius.circular(positionStyle.borderRadius),
+        boxShadow: positionStyle.boxShadow,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
@@ -455,11 +478,11 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error, color: Colors.red, size: 48),
+                    const Icon(Icons.block, color: Colors.grey, size: 48),
                     const SizedBox(height: 8),
-                    Text(
-                      _errorMessage ?? 'Ad failed to load',
-                      style: const TextStyle(color: Colors.red),
+                    const Text(
+                      'Ad not loaded or placement ID does not exist',
+                      style: TextStyle(color: Colors.grey),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),

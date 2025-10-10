@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
-import 'package:testapp/Core/ad_callback.dart';
 
 class WindowedAdTestView extends StatefulWidget {
   const WindowedAdTestView({super.key});
@@ -12,15 +11,7 @@ class WindowedAdTestView extends StatefulWidget {
 class _WindowedAdTestViewState extends State<WindowedAdTestView> {
   bool _isSDKInitialized = false;
   Widget? _currentAdView;
-  String _logs = "";
-  String _selectedPosition = "unknown";
   bool _showPositioningPanel = true;
-
-  void _addLog(String message) {
-    setState(() {
-      _logs += '${DateTime.now().toString().substring(11, 19)}: $message\n';
-    });
-  }
 
   Future<void> _initializeSDK() async {
     try {
@@ -34,19 +25,16 @@ class _WindowedAdTestViewState extends State<WindowedAdTestView> {
       setState(() {
         _isSDKInitialized = true;
       });
-      _addLog("SDK initialized successfully");
     } catch (e) {
-      _addLog("SDK initialization failed: $e");
+      // Handle initialization error silently
     }
   }
 
   Future<void> _createImageAd() async {
     if (!_isSDKInitialized) {
-      _addLog("SDK not initialized. Please wait...");
       return;
     }
-    _addLog("Creating image ad...");
-    final callback = TestAdCallback(_addLog);
+    final callback = TestAdCallback((message) {});
     final adView = await BidscubeSDK.getImageAdView(
       "19481",
       callback: callback,
@@ -58,11 +46,9 @@ class _WindowedAdTestViewState extends State<WindowedAdTestView> {
 
   Future<void> _createVideoAd() async {
     if (!_isSDKInitialized) {
-      _addLog("SDK not initialized. Please wait...");
       return;
     }
-    _addLog("Creating video ad...");
-    final callback = TestAdCallback(_addLog);
+    final callback = TestAdCallback((message) {});
     final adView = await BidscubeSDK.getVideoAdView(
       "19483",
       callback: callback,
@@ -74,11 +60,9 @@ class _WindowedAdTestViewState extends State<WindowedAdTestView> {
 
   Future<void> _createNativeAd() async {
     if (!_isSDKInitialized) {
-      _addLog("SDK not initialized. Please wait...");
       return;
     }
-    _addLog("Creating native ad...");
-    final callback = TestAdCallback(_addLog);
+    final callback = TestAdCallback((message) {});
     final adView = await BidscubeSDK.getNativeAdView(
       "19487",
       callback: callback,
@@ -86,17 +70,6 @@ class _WindowedAdTestViewState extends State<WindowedAdTestView> {
     setState(() {
       _currentAdView = adView;
     });
-  }
-
-  void _validateLayout() {
-    _addLog("✓ All requirements met!");
-  }
-
-  void _testAdPositioning(String position) {
-    setState(() {
-      _selectedPosition = position;
-    });
-    _addLog("Ad positioned at: $position");
   }
 
   @override
@@ -213,7 +186,7 @@ class _WindowedAdTestViewState extends State<WindowedAdTestView> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue,
                               ),
-                              onPressed: () => _testAdPositioning(pos),
+                              onPressed: () {},
                               child: Text(
                                 "Position: $pos",
                                 style: const TextStyle(color: Colors.white),
@@ -247,7 +220,7 @@ class _WindowedAdTestViewState extends State<WindowedAdTestView> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.purple,
                         ),
-                        onPressed: _validateLayout,
+                        onPressed: () {},
                         child: const Text("Validate Layout"),
                       ),
                       ElevatedButton(

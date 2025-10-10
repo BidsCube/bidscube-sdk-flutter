@@ -1,0 +1,19 @@
+# Exclude test app from publishing
+testapp/
+
+# Exclude development files
+*.iml
+hello.iml
+testapp.iml
+
+# Exclude build artifacts
+build/
+.dart_tool/
+
+# Exclude IDE files
+.idea/
+.vscode/
+
+# Exclude OS files
+.DS_Store
+Thumbs.db

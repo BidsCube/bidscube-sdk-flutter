@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:interactive_media_ads/interactive_media_ads.dart';
 import 'package:video_player/video_player.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 /// IMA VAST Video Ad View Widget
 /// Uses Google's Interactive Media Ads SDK for proper VAST video ad handling
@@ -28,8 +30,11 @@ class ImaVastVideoAdView extends StatefulWidget {
   /// Ad position
   final AdPosition position;
 
+  /// Position change callback
+  final Function(AdPosition)? onPositionChanged;
+
   const ImaVastVideoAdView({
-    Key? key,
+    super.key,
     required this.placementId,
     this.callback,
     this.width = 320,
@@ -37,7 +42,8 @@ class ImaVastVideoAdView extends StatefulWidget {
     this.baseUrl = Constants.baseURL,
     this.adType = AdType.video,
     this.position = AdPosition.unknown,
-  }) : super(key: key);
+    this.onPositionChanged,
+  });
 
   @override
   State<ImaVastVideoAdView> createState() => _ImaVastVideoAdViewState();
@@ -58,8 +64,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   // State management
   bool _isLoading = true;
   bool _hasError = false;
-  String? _errorMessage;
-  String? _vastXml;
+  AdPosition _currentPosition = AdPosition.unknown;
 
   // Content progress provider for mid-roll ads
   final ContentProgressProvider _contentProgressProvider =
@@ -97,10 +102,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
                   SDKLogger.info(
                     'IMA AdEvent: ${event.type} => ${event.adData}',
                   );
-                  widget.callback?.onAdLoaded(widget.placementId);
 
                   switch (event.type) {
                     case AdEventType.loaded:
+                      widget.callback?.onAdLoaded(widget.placementId);
                       manager.start();
                       widget.callback?.onAdDisplayed(widget.placementId);
                     case AdEventType.contentPauseRequested:
@@ -147,35 +152,88 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
             _resumeContent();
           },
         );
-
-        // Request ads once container is ready
-        if (_vastXml != null) {
-          _requestAds(container);
-        }
       },
     );
   }
 
   Future<void> _loadVastAd() async {
     widget.callback?.onAdLoading(widget.placementId);
-
+    String vastXml = '';
     try {
-      // For IMA SDK, we need a URL that returns VAST XML, not the XML content itself
-      // Use a sample VAST URL for demo purposes
-      _vastXml =
-          'https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/vmap_ad_samples&sz=640x480&cust_params=sample_ar%3Dpremidpost&ciu_szs=300x250&gdfp_req=1&ad_rule=1&output=vmap&unviewed_position_start=1&env=vp&impl=s&cmsid=496&vid=short_onecue&correlator=';
-      SDKLogger.info('Using sample VAST URL for IMA SDK');
+      SDKLogger.info('Loading VAST video ad: ${widget.placementId}');
 
-      setState(() {
-        _isLoading = false;
-      });
+      // First, try to get VAST XML from the API using URLBuilder
+      final apiURL = await URLBuilder.buildAdRequestURL(
+        placementId: widget.placementId,
+        adType: widget.adType,
+        position: widget.position,
+        baseURL: widget.baseUrl,
+      );
 
-      // Initialize content video
-      await _initializeContentVideo();
+      if (apiURL == null) {
+        throw Exception('Failed to build API URL for VAST request');
+      }
+
+      // Make direct HTTP request to the built URL
+      final response = await http.get(Uri.parse(apiURL));
+
+      SDKLogger.info('VAST response: ${response.statusCode}');
+
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        // Check if response is JSON with adm parameter
+        try {
+          final jsonResponse = json.decode(response.body);
+          if (jsonResponse is Map<String, dynamic>) {
+            // Extract position from server response if available
+            if (jsonResponse['position'] != null) {
+              final positionValue = jsonResponse['position'] as int;
+              final serverPosition = AdPositionExtension.fromValue(
+                positionValue,
+              );
+              SDKLogger.info('Position: ${serverPosition.value}');
+
+              // Update current position and trigger re-render
+              if (mounted) {
+                setState(() {
+                  _currentPosition = serverPosition;
+                });
+              }
+
+              // Notify parent widget about position change
+              widget.onPositionChanged?.call(serverPosition);
+            }
+
+            if (jsonResponse['adm'] != null) {
+              vastXml = jsonResponse['adm'] as String;
+            } else {
+              // Response is direct VAST XML
+              vastXml = response.body;
+            }
+          } else {
+            // Response is direct VAST XML
+            vastXml = response.body;
+          }
+        } catch (e) {
+          // Response is not JSON, treat as direct VAST XML
+          vastXml = response.body;
+        }
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Request ads through IMA SDK using the original API URL
+        // The IMA SDK expects a URL that returns VAST XML, not the XML content itself
+        // Add a small delay to ensure AdsLoader is ready
+        await Future.delayed(const Duration(milliseconds: 500));
+        await _requestAds(_adDisplayContainer, vastXml);
+      } else {
+        throw Exception('No VAST XML received from server');
+      }
     } catch (e) {
+      SDKLogger.error('VAST ad request failed', e);
       setState(() {
         _hasError = true;
-        _errorMessage = e.toString();
         _isLoading = false;
       });
       widget.callback?.onAdFailed(
@@ -186,31 +244,11 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     }
   }
 
-  Future<void> _initializeContentVideo() async {
-    _contentVideoController = VideoPlayerController.networkUrl(
-      Uri.parse(
-        'https://storage.googleapis.com/gvabox/media/samples/stock.mp4',
-      ),
-    );
-
-    await _contentVideoController!.initialize();
-    _contentVideoController!.addListener(() {
-      if (_contentVideoController!.value.isCompleted) {
-        _adsLoader?.contentComplete();
-      }
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
-  Future<void> _requestAds(AdDisplayContainer container) async {
-    if (_vastXml == null) return;
-
+  Future<void> _requestAds(AdDisplayContainer container, String vastXml) async {
     try {
       await _adsLoader?.requestAds(
-        AdsRequest(
-          adTagUrl: _vastXml!,
+        AdsRequest.withAdsResponse(
+          adsResponse: vastXml,
           contentProgressProvider: _contentProgressProvider,
         ),
       );
@@ -258,15 +296,128 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     return _contentVideoController?.pause() ?? Future.value();
   }
 
+  BidscubePositionStyle _getPositionBasedStyle() {
+    switch (_currentPosition) {
+      case AdPosition.unknown:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.white,
+          borderRadius: 8.0,
+          border: Border.all(color: Colors.grey[300]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(26),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+      case AdPosition.aboveTheFold:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.blue[50]!,
+          borderRadius: 12.0,
+          border: Border.all(color: Colors.blue[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withAlpha(51),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        );
+      case AdPosition.belowTheFold:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.green[50]!,
+          borderRadius: 10.0,
+          border: Border.all(color: Colors.green[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.withAlpha(51),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+      case AdPosition.header:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.orange[50]!,
+          borderRadius: 6.0,
+          border: Border.all(color: Colors.orange[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withAlpha(51),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+      case AdPosition.footer:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.purple[50]!,
+          borderRadius: 6.0,
+          border: Border.all(color: Colors.purple[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withAlpha(51),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+      case AdPosition.sidebar:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.teal[50]!,
+          borderRadius: 8.0,
+          border: Border.all(color: Colors.teal[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.teal.withAlpha(51),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+      case AdPosition.fullScreen:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.red[50]!,
+          borderRadius: 16.0,
+          border: Border.all(color: Colors.red[200]!, width: 3),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withAlpha(77),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        );
+      case AdPosition.dependOnTheScreenSize:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.amber[50]!,
+          borderRadius: 10.0,
+          border: Border.all(color: Colors.amber[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.amber.withAlpha(51),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final positionStyle = _getPositionBasedStyle();
+
     if (_isLoading) {
       return Container(
         width: widget.width,
         height: widget.height,
         decoration: BoxDecoration(
-          color: Colors.grey[300],
-          borderRadius: BorderRadius.circular(8),
+          color: positionStyle.backgroundColor,
+          borderRadius: BorderRadius.circular(positionStyle.borderRadius),
+          border: positionStyle.border,
+          boxShadow: positionStyle.boxShadow,
         ),
         child: const Center(child: CircularProgressIndicator()),
       );
@@ -277,30 +428,25 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         width: widget.width,
         height: widget.height,
         decoration: BoxDecoration(
-          color: Colors.red[100],
-          borderRadius: BorderRadius.circular(8),
+          color: positionStyle.backgroundColor,
+          borderRadius: BorderRadius.circular(positionStyle.borderRadius),
+          border: positionStyle.border,
+          boxShadow: positionStyle.boxShadow,
         ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error, color: Colors.red),
+              const Icon(Icons.block, color: Colors.grey, size: 48),
               const SizedBox(height: 8),
-              Text(
-                'Ad Error',
+              const Text(
+                'Ad not loaded or placement ID does not exist',
                 style: TextStyle(
-                  color: Colors.red[800],
+                  color: Colors.grey,
                   fontWeight: FontWeight.bold,
                 ),
+                textAlign: TextAlign.center,
               ),
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  _errorMessage!,
-                  style: TextStyle(color: Colors.red[600], fontSize: 12),
-                  textAlign: TextAlign.center,
-                ),
-              ],
             ],
           ),
         ),

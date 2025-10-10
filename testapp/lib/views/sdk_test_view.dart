@@ -22,6 +22,7 @@ class _SDKTestViewState extends State<SDKTestView> {
   String _webViewHTML = '';
   bool _loggingEnabled = true;
   AdPosition _selectedPosition = AdPosition.unknown;
+  List<String> _logs = [];
 
   @override
   void initState() {
@@ -62,8 +63,11 @@ class _SDKTestViewState extends State<SDKTestView> {
   }
 
   void _addLog(String message) {
+    final timestampedMessage =
+        '${DateTime.now().toString().substring(11, 19)}: $message';
+    _logs.add(timestampedMessage);
     if (_loggingEnabled) {
-      log('${DateTime.now().toString().substring(11, 19)}: $message');
+      log(timestampedMessage);
     }
   }
 
@@ -156,6 +160,53 @@ class _SDKTestViewState extends State<SDKTestView> {
       _loggingEnabled = !_loggingEnabled;
     });
     _addLog('Logging ${_loggingEnabled ? 'enabled' : 'disabled'}');
+  }
+
+  void _showLogs() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('SDK Logs'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 400,
+            child: _logs.isEmpty
+                ? const Text('No logs available')
+                : ListView.builder(
+                    itemCount: _logs.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2.0),
+                        child: Text(
+                          _logs[index],
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _logs.clear();
+                });
+                Navigator.of(context).pop();
+              },
+              child: const Text('Clear Logs'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -484,38 +535,21 @@ class _SDKTestViewState extends State<SDKTestView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text('Logging Control'),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Flexible(
-                          child: CustomFilledButton(
-                            label: 'Enable Logging',
-                            color: Colors.green,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Flexible(
-                          child: CustomFilledButton(
-                            label: 'Disable Logging',
-                            color: Colors.red,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
                     CustomFilledButton(
-                      onPressed: _resetSDK,
+                      onPressed: _toggleLogging,
                       label: 'Test Logging',
                       color: Colors.grey,
                     ),
-                    CustomFilledButton(label: 'Cleanup SDK', color: Colors.red),
+                    CustomFilledButton(
+                      onPressed: _showLogs,
+                      label: 'Show Logs',
+                      color: Colors.blue,
+                    ),
+                    CustomFilledButton(
+                      onPressed: _resetSDK,
+                      label: 'Cleanup SDK',
+                      color: Colors.red,
+                    ),
                   ],
                 ),
               ),
@@ -536,9 +570,24 @@ class _SDKTestViewState extends State<SDKTestView> {
                       Text('Override Ad Position for Testing '),
                       Switch(
                         value: _adPositionOverrideSwitch.value,
-                        onChanged: (value) {
+                        onChanged: (value) async {
                           _adPositionOverrideSwitch.value = value;
                           setState(() {});
+
+                          // Recreate the ad view with the new position setting
+                          if (_currentAdView != null) {
+                            _addLog(
+                              'Position override ${value ? 'enabled' : 'disabled'}',
+                            );
+                            // Determine current ad type and reload
+                            if (_currentAdView is WebViewImageAdView) {
+                              await _reloadAd(AdType.image);
+                            } else if (_currentAdView is ImaVastVideoAdView) {
+                              await _reloadAd(AdType.video);
+                            } else if (_currentAdView is FlutterNativeAdView) {
+                              await _reloadAd(AdType.native);
+                            }
+                          }
                         },
                       ),
                     ],
@@ -589,11 +638,30 @@ class _SDKTestViewState extends State<SDKTestView> {
                                       ),
                                     );
                                   }).toList(),
-                                  onChanged: (AdPosition? newValue) {
+                                  onChanged: (AdPosition? newValue) async {
                                     if (newValue != null) {
                                       setState(() {
                                         _selectedPosition = newValue;
                                       });
+
+                                      // Recreate the ad view with the new position if override is enabled
+                                      if (_currentAdView != null &&
+                                          _adPositionOverrideSwitch.value) {
+                                        _addLog(
+                                          'Position override changed to: ${newValue.value}',
+                                        );
+                                        // Determine current ad type and reload
+                                        if (_currentAdView
+                                            is WebViewImageAdView) {
+                                          await _reloadAd(AdType.image);
+                                        } else if (_currentAdView
+                                            is ImaVastVideoAdView) {
+                                          await _reloadAd(AdType.video);
+                                        } else if (_currentAdView
+                                            is FlutterNativeAdView) {
+                                          await _reloadAd(AdType.native);
+                                        }
+                                      }
                                     }
                                   },
                                 ),

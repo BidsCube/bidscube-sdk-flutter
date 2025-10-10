@@ -5,23 +5,23 @@ import '../core/callbacks.dart';
 class BannerAdView extends StatefulWidget {
   /// Placement ID for the ad
   final String placementId;
-  
+
   /// Ad callback handler
   final AdCallback? callback;
-  
+
   /// Ad width
   final double width;
-  
+
   /// Ad height
   final double height;
 
   const BannerAdView({
-    Key? key,
+    super.key,
     required this.placementId,
     this.callback,
     this.width = 320,
     this.height = 50,
-  }) : super(key: key);
+  });
 
   @override
   State<BannerAdView> createState() => _BannerAdViewState();
@@ -40,21 +40,22 @@ class _BannerAdViewState extends State<BannerAdView> {
 
   void _loadAd() {
     widget.callback?.onAdLoading(widget.placementId);
-    
-    // Simulate ad loading
+
+    // Simulate ad loading failure to show error placeholder
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _hasError = true;
+          _errorMessage = 'Ad not loaded or placement ID does not exist';
         });
-        widget.callback?.onAdLoaded(widget.placementId);
-        widget.callback?.onAdDisplayed(widget.placementId);
+        widget.callback?.onAdFailed(
+          widget.placementId,
+          'LOAD_ERROR',
+          'Ad not loaded or placement ID does not exist',
+        );
       }
     });
-  }
-
-  void _handleAdClick() {
-    widget.callback?.onAdClicked(widget.placementId);
   }
 
   @override
@@ -69,27 +70,22 @@ class _BannerAdViewState extends State<BannerAdView> {
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _hasError
-              ? Center(
-                  child: Text(
-                    _errorMessage ?? 'Ad failed to load',
-                    style: const TextStyle(color: Colors.red),
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.block, color: Colors.grey, size: 32),
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage ??
+                        'Ad not loaded or placement ID does not exist',
+                    style: const TextStyle(color: Colors.grey),
+                    textAlign: TextAlign.center,
                   ),
-                )
-              : GestureDetector(
-                  onTap: _handleAdClick,
-                  child: Container(
-                    color: Colors.blue[100],
-                    child: const Center(
-                      child: Text(
-                        'Banner Ad',
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                ],
+              ),
+            )
+          : const Center(child: Text('No ad content available')),
     );
   }
 }

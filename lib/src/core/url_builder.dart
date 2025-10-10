@@ -36,7 +36,8 @@ class URLBuilder {
       final finalUri = uri.replace(queryParameters: queryParams);
       final url = finalUri.toString();
 
-      SDKLogger.info('Built ${adType.value} ad URL: $url');
+      SDKLogger.info('Building URL for ${adType.value} ad: $placementId');
+
       return url;
     } catch (e) {
       SDKLogger.error('Failed to build ad request URL', e);
@@ -146,7 +147,7 @@ class URLBuilder {
         language = 'en';
       }
 
-      return {
+      final deviceInfoMap = {
         'platform': platform,
         'deviceWidth': deviceWidth,
         'deviceHeight': deviceHeight,
@@ -155,6 +156,12 @@ class URLBuilder {
         'advertisingId': await _getAdvertisingId(),
         'doNotTrack': await _getDoNotTrackStatus(),
       };
+
+      SDKLogger.info(
+        'Device: ${deviceInfoMap['platform']} ${deviceInfoMap['deviceWidth']}x${deviceInfoMap['deviceHeight']}',
+      );
+
+      return deviceInfoMap;
     } catch (e) {
       SDKLogger.error('Failed to get device info', e);
       return {

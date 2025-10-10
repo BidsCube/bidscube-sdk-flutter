@@ -7,7 +7,6 @@ void main() {
 
     setUp(() {
       config = SDKConfig.builder()
-          .baseURL('https://api.bidscube.com')
           .enableLogging(true)
           .enableDebugMode(true)
           .defaultAdTimeout(30000)
@@ -17,7 +16,6 @@ void main() {
     });
 
     test('SDKConfig should be created correctly', () {
-      expect(config.baseURL, 'https://api.bidscube.com');
       expect(config.enableLogging, true);
       expect(config.enableDebugMode, true);
       expect(config.defaultAdTimeout, 30000);
@@ -27,7 +25,6 @@ void main() {
 
     test('SDKConfig should convert to map correctly', () {
       final map = config.toMap();
-      expect(map['baseURL'], 'https://api.bidscube.com');
       expect(map['enableLogging'], true);
       expect(map['enableDebugMode'], true);
       expect(map['defaultAdTimeout'], 30000);
@@ -80,7 +77,7 @@ void main() {
       expect(() => callback.onAdLoaded(placementId), returnsNormally);
       expect(() => callback.onAdDisplayed(placementId), returnsNormally);
       expect(
-        () => callback.onAdFailed(placementId, 404, 'Not found'),
+        () => callback.onAdFailed(placementId, "404", 'Not found'),
         returnsNormally,
       );
       expect(() => callback.onAdClicked(placementId), returnsNormally);

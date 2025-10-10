@@ -1,3 +1,5 @@
+import 'logger.dart';
+
 /// Ad callback interface for BidsCube SDK
 abstract class AdCallback {
   /// Called when ad starts loading
@@ -32,46 +34,48 @@ abstract class AdCallback {
 class DefaultAdCallback implements AdCallback {
   @override
   void onAdLoading(String placementId) {
-    print('Ad loading: $placementId');
+    SDKLogger.info('Ad loading: $placementId');
   }
 
   @override
   void onAdLoaded(String placementId) {
-    print('Ad loaded: $placementId');
+    SDKLogger.info('Ad loaded: $placementId');
   }
 
   @override
   void onAdDisplayed(String placementId) {
-    print('Ad displayed: $placementId');
+    SDKLogger.info('Ad displayed: $placementId');
   }
 
   @override
   void onAdFailed(String placementId, String errorCode, String errorMessage) {
-    print('Ad failed: $placementId - $errorMessage (Code: $errorCode)');
+    SDKLogger.error(
+      'Ad failed: $placementId - $errorMessage (Code: $errorCode)',
+    );
   }
 
   @override
   void onAdClicked(String placementId) {
-    print('Ad clicked: $placementId');
+    SDKLogger.info('Ad clicked: $placementId');
   }
 
   @override
   void onAdClosed(String placementId) {
-    print('Ad closed: $placementId');
+    SDKLogger.info('Ad closed: $placementId');
   }
 
   @override
   void onVideoAdStarted(String placementId) {
-    print('Video ad started: $placementId');
+    SDKLogger.info('Video ad started: $placementId');
   }
 
   @override
   void onVideoAdCompleted(String placementId) {
-    print('Video ad completed: $placementId');
+    SDKLogger.info('Video ad completed: $placementId');
   }
 
   @override
   void onVideoAdSkipped(String placementId) {
-    print('Video ad skipped: $placementId');
+    SDKLogger.info('Video ad skipped: $placementId');
   }
 }

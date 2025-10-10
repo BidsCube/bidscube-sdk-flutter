@@ -6,10 +6,7 @@ import '../core/ad_type.dart';
 import '../core/ad_position.dart';
 import '../core/logger.dart';
 import '../core/ad_request_client.dart';
-import '../core/url_builder.dart';
-import '../core/constants.dart';
 import '../views/webview_image_ad_view.dart';
-import '../views/vast_video_ad_view.dart';
 import '../views/ima_vast_video_ad_view.dart';
 import '../views/flutter_native_ad_view.dart';
 
@@ -49,9 +46,12 @@ class FlutterOnlyBidscube extends BidscubePlatform {
       return WebViewImageAdView(
         placementId: placementId,
         callback: callback,
-        baseUrl: _adClient.baseUrl,
         adType: AdType.image,
         position: position,
+        onPositionChanged: (newPosition) {
+          SDKLogger.info('Image ad position changed to: ${newPosition.value}');
+          // In a real implementation, this would update the UI or notify the parent
+        },
       );
     } catch (e) {
       SDKLogger.error('Failed to get image ad view', e);
@@ -76,6 +76,10 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         baseUrl: _adClient.baseUrl,
         adType: AdType.video,
         position: position,
+        onPositionChanged: (newPosition) {
+          SDKLogger.info('Video ad position changed to: ${newPosition.value}');
+          // In a real implementation, this would update the UI or notify the parent
+        },
       );
     } catch (e) {
       SDKLogger.error('Failed to get video ad view', e);
@@ -97,9 +101,12 @@ class FlutterOnlyBidscube extends BidscubePlatform {
       return FlutterNativeAdView(
         placementId: placementId,
         callback: callback,
-        baseUrl: _adClient.baseUrl,
         adType: AdType.native,
         position: position,
+        onPositionChanged: (newPosition) {
+          SDKLogger.info('Native ad position changed to: ${newPosition.value}');
+          // In a real implementation, this would update the UI or notify the parent
+        },
       );
     } catch (e) {
       SDKLogger.error('Failed to get native ad view', e);
@@ -122,11 +129,14 @@ class FlutterOnlyBidscube extends BidscubePlatform {
       return WebViewImageAdView(
         placementId: placementId,
         callback: callback,
-        baseUrl: _adClient.baseUrl,
         width: 320,
         height: 50, // Standard banner height
         adType: AdType.banner,
         position: position,
+        onPositionChanged: (newPosition) {
+          SDKLogger.info('Banner ad position changed to: ${newPosition.value}');
+          // In a real implementation, this would update the UI or notify the parent
+        },
       );
     } catch (e) {
       SDKLogger.error('Failed to get banner ad view', e);

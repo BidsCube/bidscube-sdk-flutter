@@ -1,10 +1,7 @@
+import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../core/callbacks.dart';
-import '../core/url_builder.dart';
-import '../core/ad_type.dart';
-import '../core/ad_position.dart';
 
 /// Flutter Native Ad View Widget
 /// Renders native ads using pure Flutter widgets without native code dependencies
@@ -21,9 +18,6 @@ class FlutterNativeAdView extends StatefulWidget {
   /// Ad height
   final double height;
 
-  /// Base URL for ad requests
-  final String baseUrl;
-
   /// Custom ad template style
   final NativeAdStyle? style;
 
@@ -33,17 +27,20 @@ class FlutterNativeAdView extends StatefulWidget {
   /// Ad position
   final AdPosition position;
 
+  /// Position change callback
+  final Function(AdPosition)? onPositionChanged;
+
   const FlutterNativeAdView({
-    Key? key,
+    super.key,
     required this.placementId,
     this.callback,
     this.width = 320,
     this.height = 240,
-    this.baseUrl = 'https://api.bidscube.com',
     this.style,
     this.adType = AdType.native,
     this.position = AdPosition.unknown,
-  }) : super(key: key);
+    this.onPositionChanged,
+  });
 
   @override
   State<FlutterNativeAdView> createState() => _FlutterNativeAdViewState();
@@ -52,12 +49,13 @@ class FlutterNativeAdView extends StatefulWidget {
 class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
   bool _isLoading = true;
   bool _hasError = false;
-  String? _errorMessage;
   NativeAdData? _adData;
+  AdPosition _currentPosition = AdPosition.unknown;
 
   @override
   void initState() {
     super.initState();
+    _currentPosition = widget.position;
     _loadNativeAd();
   }
 
@@ -76,13 +74,18 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
 
         widget.callback?.onAdLoaded(widget.placementId);
         widget.callback?.onAdDisplayed(widget.placementId);
+
+        // Native ad loaded successfully
+        SDKLogger.info('Native ad loaded: ${_adData!.title}');
+
+        // Track impressions
+        _trackImpressions();
       } else {
         throw Exception('No native ad available');
       }
     } catch (e) {
       setState(() {
         _hasError = true;
-        _errorMessage = e.toString();
         _isLoading = false;
       });
       widget.callback?.onAdFailed(
@@ -100,20 +103,15 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
         placementId: widget.placementId,
         adType: widget.adType,
         position: widget.position,
-        baseURL: widget.baseUrl,
       );
 
       if (apiURL == null) {
         throw Exception('Failed to build API URL');
       }
 
-      final response = await http.get(
-        Uri.parse(apiURL),
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'BidscubeSDK-Flutter/1.0.0',
-        },
-      );
+      final response = await http.get(Uri.parse(apiURL));
+
+      SDKLogger.info('Native ad request: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         // Check if response is JSON
@@ -121,46 +119,159 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
         if (contentType.contains('application/json')) {
           try {
             final data = json.decode(response.body);
-            return NativeAdData.fromJson(data);
+
+            // Extract position from server response if available
+            if (data['position'] != null) {
+              final positionValue = data['position'] as int;
+              final serverPosition = AdPositionExtension.fromValue(
+                positionValue,
+              );
+              SDKLogger.info('Position: ${serverPosition.value}');
+
+              // Update current position and trigger re-render
+              if (mounted) {
+                setState(() {
+                  _currentPosition = serverPosition;
+                });
+              }
+
+              // Notify parent widget about position change
+              widget.onPositionChanged?.call(serverPosition);
+            }
+
+            // Check if the response has an 'adm' field with nested JSON
+            if (data['adm'] != null) {
+              final admData = json.decode(data['adm']);
+              // Extract native ad data from the nested structure
+              final nativeAdData = _parseNativeAdFromAdm(admData);
+              return nativeAdData;
+            } else {
+              // Direct native ad data
+              return NativeAdData.fromJson(data);
+            }
           } catch (e) {
+            SDKLogger.error('JSON parsing failed', e);
             throw Exception('Invalid JSON response: ${e.toString()}');
           }
         } else {
           // Server returned HTML instead of JSON (likely 404 page)
+          SDKLogger.error('Server returned HTML instead of JSON');
           throw Exception(
             'Server returned HTML instead of JSON. Content-Type: $contentType',
           );
         }
       } else {
+        SDKLogger.error(
+          'HTTP request failed with status: ${response.statusCode}',
+        );
         throw Exception('Failed to load native ad: ${response.statusCode}');
       }
     } catch (e) {
-      // For demo purposes, return mock data
-      return NativeAdData(
-        title: 'Sample Native Ad',
-        description:
-            'This is a sample native ad with rich content and engaging visuals.',
-        imageUrl:
-            'https://via.placeholder.com/300x200/2196F3/FFFFFF?text=Ad+Image',
-        iconUrl: 'https://via.placeholder.com/50x50/FF9800/FFFFFF?text=Logo',
-        callToAction: 'Learn More',
-        clickUrl: 'https://example.com',
-        advertiser: 'Sample Advertiser',
-        rating: 4.5,
-        price: '\$29.99',
-        store: 'App Store',
-      );
+      // Re-throw the error instead of returning mock data
+      rethrow;
     }
   }
 
   void _onAdClicked() {
     widget.callback?.onAdClicked(widget.placementId);
 
+    // Track clicks
+    _trackClicks();
+
     if (_adData?.clickUrl != null) {
       // Handle click URL opening
       // In a real implementation, you would use url_launcher
-      print('Opening URL: ${_adData!.clickUrl}');
+      SDKLogger.info('Opening URL: ${_adData!.clickUrl}');
     }
+  }
+
+  void _onImageClicked() {
+    widget.callback?.onAdClicked(widget.placementId);
+
+    // Track clicks
+    _trackClicks();
+
+    if (_adData?.imageClickUrl != null) {
+      // Handle image click URL opening
+      SDKLogger.info('Opening image URL: ${_adData!.imageClickUrl}');
+    }
+  }
+
+  void _trackImpressions() {
+    if (_adData?.impressionTrackers != null) {
+      for (final tracker in _adData!.impressionTrackers!) {
+        // In a real implementation, you would make HTTP requests to track impressions
+        SDKLogger.info('Tracking impression: $tracker');
+        // Example: http.get(Uri.parse(tracker));
+      }
+    }
+  }
+
+  void _trackClicks() {
+    if (_adData?.clickTrackers != null) {
+      for (final tracker in _adData!.clickTrackers!) {
+        // In a real implementation, you would make HTTP requests to track clicks
+        SDKLogger.info('Tracking click: $tracker');
+        // Example: http.get(Uri.parse(tracker));
+      }
+    }
+  }
+
+  NativeAdData _parseNativeAdFromAdm(Map<String, dynamic> admData) {
+    // Extract native ad data from the complex nested structure
+    final native = admData['native'];
+    if (native == null) {
+      throw Exception('No native ad data found in adm structure');
+    }
+
+    String title = '';
+    String description = '';
+    String? imageUrl;
+    String? clickUrl;
+    List<String> impressionTrackers = [];
+
+    // Extract title from assets
+    final assets = native['assets'] as List<dynamic>?;
+    if (assets != null) {
+      for (final asset in assets) {
+        if (asset['id'] == 2 && asset['title'] != null) {
+          title = asset['title']['text'] ?? '';
+        } else if (asset['id'] == 4 && asset['img'] != null) {
+          imageUrl = asset['img']['url'];
+        } else if (asset['id'] == 6 && asset['data'] != null) {
+          // This could be price or description
+          final value = asset['data']['value'] ?? '';
+          if (value.startsWith('\$')) {
+            // This is a price
+            description = 'Price: $value';
+          } else {
+            description = value;
+          }
+        }
+      }
+    }
+
+    // Extract click URL
+    if (native['link'] != null) {
+      clickUrl = native['link']['url'];
+    }
+
+    // Extract impression trackers
+    if (native['imptrackers'] != null) {
+      impressionTrackers = List<String>.from(native['imptrackers']);
+    }
+
+    return NativeAdData(
+      title: title,
+      description: description,
+      imageUrl: imageUrl,
+      clickUrl: clickUrl,
+      callToAction: 'Learn More',
+      advertiser: 'Sponsored',
+      impressionTrackers: impressionTrackers.isNotEmpty
+          ? impressionTrackers
+          : null,
+    );
   }
 
   @override
@@ -190,11 +301,11 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error, color: Colors.red, size: 48),
+                    const Icon(Icons.block, color: Colors.grey, size: 48),
                     const SizedBox(height: 8),
-                    Text(
-                      _errorMessage ?? 'Native ad failed to load',
-                      style: const TextStyle(color: Colors.red),
+                    const Text(
+                      'Ad not loaded or placement ID does not exist',
+                      style: TextStyle(color: Colors.grey),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
@@ -212,152 +323,376 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
     );
   }
 
+  BidscubePositionStyle _getPositionBasedStyle() {
+    switch (_currentPosition) {
+      case AdPosition.unknown:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.white,
+          borderRadius: 8.0,
+          border: Border.all(color: Colors.grey[300]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(26),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+      case AdPosition.aboveTheFold:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.blue[50]!,
+          borderRadius: 12.0,
+          border: Border.all(color: Colors.blue[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withAlpha(51),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        );
+      case AdPosition.belowTheFold:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.green[50]!,
+          borderRadius: 10.0,
+          border: Border.all(color: Colors.green[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.withAlpha(51),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+      case AdPosition.header:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.orange[50]!,
+          borderRadius: 6.0,
+          border: Border.all(color: Colors.orange[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withAlpha(51),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+      case AdPosition.footer:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.purple[50]!,
+          borderRadius: 6.0,
+          border: Border.all(color: Colors.purple[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withAlpha(51),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+      case AdPosition.sidebar:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.teal[50]!,
+          borderRadius: 8.0,
+          border: Border.all(color: Colors.teal[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.teal.withAlpha(51),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+      case AdPosition.fullScreen:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.red[50]!,
+          borderRadius: 16.0,
+          border: Border.all(color: Colors.red[200]!, width: 3),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withAlpha(77),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        );
+      case AdPosition.dependOnTheScreenSize:
+        return BidscubePositionStyle(
+          backgroundColor: Colors.amber[50]!,
+          borderRadius: 10.0,
+          border: Border.all(color: Colors.amber[200]!, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.amber.withAlpha(51),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        );
+    }
+  }
+
   Widget _buildNativeAdContent() {
     final style = widget.style ?? NativeAdStyle.defaultStyle();
     final adData = _adData!;
 
-    return GestureDetector(
-      onTap: _onAdClicked,
-      child: Container(
-        decoration: BoxDecoration(
-          color: style.backgroundColor,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with icon and advertiser
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  // Advertiser icon
-                  if (adData.iconUrl != null)
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        image: DecorationImage(
-                          image: NetworkImage(adData.iconUrl!),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(width: 8),
-                  // Advertiser name
-                  Expanded(
-                    child: Text(
-                      adData.advertiser ?? 'Sponsored',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: style.secondaryTextColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  // Ad indicator
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: style.accentColor,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'Ad',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: style.accentTextColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isSmallScreen = constraints.maxWidth < 300;
+        final isMediumScreen = constraints.maxWidth < 500;
+
+        // Apply position-based styling
+        final positionStyle = _getPositionBasedStyle();
+
+        return GestureDetector(
+          onTap: _onAdClicked,
+          child: Container(
+            decoration: BoxDecoration(
+              color: positionStyle.backgroundColor,
+              borderRadius: BorderRadius.circular(positionStyle.borderRadius),
+              border: positionStyle.border,
+              boxShadow: positionStyle.boxShadow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with icon and advertiser
+                _buildAdHeader(adData, style, isSmallScreen),
+
+                // Main content - responsive layout
+                Expanded(
+                  child: isSmallScreen
+                      ? _buildSmallScreenLayout(adData, style)
+                      : _buildLargeScreenLayout(adData, style, isMediumScreen),
+                ),
+
+                // Call to action button
+                if (adData.callToAction != null)
+                  _buildCallToActionButton(adData, style, isSmallScreen),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAdHeader(
+    NativeAdData adData,
+    NativeAdStyle style,
+    bool isSmallScreen,
+  ) {
+    return Padding(
+      padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
+      child: Row(
+        children: [
+          // Advertiser icon
+          if (adData.iconUrl != null)
+            Container(
+              width: isSmallScreen ? 32 : 40,
+              height: isSmallScreen ? 32 : 40,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 20),
+                image: DecorationImage(
+                  image: NetworkImage(adData.iconUrl!),
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-            // Main content
+          SizedBox(width: isSmallScreen ? 6 : 8),
+          // Advertiser name
+          Expanded(
+            child: Text(
+              adData.advertiser ?? 'Sponsored',
+              style: TextStyle(
+                fontSize: isSmallScreen ? 10 : 12,
+                color: style.secondaryTextColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          // Ad indicator
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isSmallScreen ? 4 : 6,
+              vertical: isSmallScreen ? 1 : 2,
+            ),
+            decoration: BoxDecoration(
+              color: style.accentColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              'Ad',
+              style: TextStyle(
+                fontSize: isSmallScreen ? 8 : 10,
+                color: style.accentTextColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSmallScreenLayout(NativeAdData adData, NativeAdStyle style) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title
+          Text(
+            adData.title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: style.primaryTextColor,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          // Description
+          Text(
+            adData.description,
+            style: TextStyle(fontSize: 12, color: style.secondaryTextColor),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          // Image with price overlay and click handling
+          if (adData.imageUrl != null)
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    // Text content
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Title
-                          Text(
-                            adData.title,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: style.primaryTextColor,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          // Description
-                          Text(
-                            adData.description,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: style.secondaryTextColor,
-                            ),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          // Rating and price row
-                          Row(
-                            children: [
-                              if (adData.rating != null) ...[
-                                Icon(
-                                  Icons.star,
-                                  size: 16,
-                                  color: style.accentColor,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  adData.rating!.toString(),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: style.secondaryTextColor,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                              ],
-                              if (adData.price != null)
-                                Text(
-                                  adData.price!,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: style.accentColor,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
+              child: GestureDetector(
+                onTap: _onImageClicked,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    image: DecorationImage(
+                      image: NetworkImage(adData.imageUrl!),
+                      fit: BoxFit.cover,
                     ),
-                    const SizedBox(width: 12),
-                    // Image
-                    if (adData.imageUrl != null)
-                      Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          image: DecorationImage(
-                            image: NetworkImage(adData.imageUrl!),
-                            fit: BoxFit.cover,
+                  ),
+                  child: Stack(
+                    children: [
+                      // Image price overlay
+                      if (adData.imagePrice != null)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withAlpha(179),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              adData.imagePrice!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLargeScreenLayout(
+    NativeAdData adData,
+    NativeAdStyle style,
+    bool isMediumScreen,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          // Text content
+          Expanded(
+            flex: isMediumScreen ? 3 : 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Title
+                Text(
+                  adData.title,
+                  style: TextStyle(
+                    fontSize: isMediumScreen ? 15 : 16,
+                    fontWeight: FontWeight.bold,
+                    color: style.primaryTextColor,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                // Description
+                Text(
+                  adData.description,
+                  style: TextStyle(
+                    fontSize: isMediumScreen ? 13 : 14,
+                    color: style.secondaryTextColor,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                // Rating and price row
+                _buildRatingAndPrice(adData, style, isMediumScreen),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Image with price overlay and click handling
+          if (adData.imageUrl != null)
+            GestureDetector(
+              onTap: _onImageClicked,
+              child: Container(
+                width: isMediumScreen ? 80 : 100,
+                height: isMediumScreen ? 80 : 100,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: NetworkImage(adData.imageUrl!),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    // Image price overlay
+                    if (adData.imagePrice != null)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withAlpha(179),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            adData.imagePrice!,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: isMediumScreen ? 10 : 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -365,28 +700,72 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
                 ),
               ),
             ),
-            // Call to action button
-            if (adData.callToAction != null)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.all(12),
-                child: ElevatedButton(
-                  onPressed: _onAdClicked,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: style.accentColor,
-                    foregroundColor: style.accentTextColor,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  child: Text(
-                    adData.callToAction!,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingAndPrice(
+    NativeAdData adData,
+    NativeAdStyle style,
+    bool isMediumScreen,
+  ) {
+    return Row(
+      children: [
+        if (adData.rating != null) ...[
+          Icon(
+            Icons.star,
+            size: isMediumScreen ? 14 : 16,
+            color: style.accentColor,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            adData.rating!.toString(),
+            style: TextStyle(
+              fontSize: isMediumScreen ? 11 : 12,
+              color: style.secondaryTextColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+        if (adData.price != null)
+          Text(
+            adData.price!,
+            style: TextStyle(
+              fontSize: isMediumScreen ? 13 : 14,
+              fontWeight: FontWeight.bold,
+              color: style.accentColor,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCallToActionButton(
+    NativeAdData adData,
+    NativeAdStyle style,
+    bool isSmallScreen,
+  ) {
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.all(isSmallScreen ? 8 : 12),
+      child: ElevatedButton(
+        onPressed: _onAdClicked,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: style.accentColor,
+          foregroundColor: style.accentTextColor,
+          padding: EdgeInsets.symmetric(
+            vertical: isSmallScreen ? 8 : 12,
+            horizontal: isSmallScreen ? 12 : 16,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
+        child: Text(
+          adData.callToAction!,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: isSmallScreen ? 12 : 14,
+          ),
         ),
       ),
     );
@@ -405,6 +784,10 @@ class NativeAdData {
   final double? rating;
   final String? price;
   final String? store;
+  final String? imagePrice; // Price displayed on the image
+  final String? imageClickUrl; // URL to redirect when image is clicked
+  final List<String>? impressionTrackers; // URLs to track impressions
+  final List<String>? clickTrackers; // URLs to track clicks
 
   NativeAdData({
     required this.title,
@@ -417,6 +800,10 @@ class NativeAdData {
     this.rating,
     this.price,
     this.store,
+    this.imagePrice,
+    this.imageClickUrl,
+    this.impressionTrackers,
+    this.clickTrackers,
   });
 
   factory NativeAdData.fromJson(Map<String, dynamic> json) {
@@ -431,6 +818,14 @@ class NativeAdData {
       rating: json['rating']?.toDouble(),
       price: json['price'],
       store: json['store'],
+      imagePrice: json['imagePrice'],
+      imageClickUrl: json['imageClickUrl'],
+      impressionTrackers: json['impressionTrackers'] != null
+          ? List<String>.from(json['impressionTrackers'])
+          : null,
+      clickTrackers: json['clickTrackers'] != null
+          ? List<String>.from(json['clickTrackers'])
+          : null,
     );
   }
 }

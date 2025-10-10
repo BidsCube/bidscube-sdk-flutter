@@ -6,11 +6,14 @@ A comprehensive Flutter SDK for displaying image, video, and native ads across a
 
 - **Multi-platform Support**: Android, iOS, Web, macOS, Linux, Windows
 - **Image, Video, and Native ad support**
-- **Multiple ad positions** (header, footer, sidebar, fullscreen)
-- **VAST video ad support** with platform-specific implementations
+- **Multiple ad positions** (header, footer, sidebar, fullscreen, above/below the fold)
+- **Dynamic position-based styling** with visual feedback
+- **VAST video ad support** with IMA SDK integration
 - **Banner ad management**
-- **Error handling and timeout management**
-- **Production-ready** with comprehensive logging
+- **Responsive native ads** with flexible Flutter widgets
+- **Position override functionality** for testing
+- **Comprehensive error handling** and timeout management
+- **Production-ready logging** with SDKLogger
 - **Unified API** across all platforms
 
 ## Requirements
@@ -47,7 +50,7 @@ import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 
 // Configure the SDK
 final config = SDKConfig.builder()
-    .baseURL('https://api.bidscube.com')
+    .baseURL('https://ssp-bcc-ads.com/sdk')
     .enableLogging(true)
     .enableDebugMode(true)
     .defaultAdTimeout(30000)
@@ -107,8 +110,8 @@ class MyAdCallback implements AdCallback {
   }
 
   @override
-  void onAdFailed(String placementId, int errorCode, String errorMessage) {
-    print('Ad failed: $placementId - $errorMessage');
+  void onAdFailed(String placementId, String errorCode, String errorMessage) {
+    print('Ad failed: $placementId - $errorMessage (Code: $errorCode)');
   }
 
   @override
@@ -188,6 +191,64 @@ Container(
 )
 ```
 
+## Advanced Features
+
+### Dynamic Position-Based Styling
+
+The SDK automatically applies different visual styles based on the ad position received from the server:
+
+- **Above The Fold**: Blue styling with rounded corners
+- **Below The Fold**: Green styling with medium corners
+- **Header**: Orange styling with small corners
+- **Footer**: Purple styling with small corners
+- **Sidebar**: Teal styling with medium corners
+- **Full Screen**: Red styling with large corners and strong shadow
+- **Depend On Screen Size**: Amber styling with medium corners
+
+### Position Override for Testing
+
+You can override the server-determined position for testing purposes:
+
+```dart
+// Enable position override
+final config = SDKConfig.builder()
+    .enableTestMode(true)
+    .build();
+
+// The ad view will use the specified position instead of server response
+final adView = await BidscubeSDK.getImageAdView(
+  'your_placement_id',
+  position: AdPosition.fullScreen, // Override position
+  callback: MyAdCallback(),
+);
+```
+
+### Responsive Native Ads
+
+Native ads automatically adapt to different screen sizes using flexible Flutter widgets:
+
+- **Small screens** (< 300px): Compact layout
+- **Medium screens** (300-500px): Balanced layout
+- **Large screens** (> 500px): Full layout with all elements
+
+### Comprehensive Logging
+
+The SDK provides detailed logging through `SDKLogger`:
+
+```dart
+// Enable detailed logging
+final config = SDKConfig.builder()
+    .enableLogging(true)
+    .enableDebugMode(true)
+    .build();
+
+// Logs include:
+// - Request URLs and parameters
+// - Response status codes and content
+// - Position changes from server
+// - Error details and stack traces
+```
+
 ## Test Placement IDs
 
 | Placement ID  | Ad Type | Description                      |
@@ -199,10 +260,10 @@ Container(
 
 ## Running the Test App
 
-1. **Navigate to testApp directory**:
+1. **Navigate to testapp directory**:
 
    ```bash
-   cd testApp
+   cd testapp
    ```
 
 2. **Get dependencies**:
@@ -239,7 +300,7 @@ Container(
 
 ```dart
 final config = SDKConfig.builder()
-    .baseURL('https://api.bidscube.com')     // API endpoint
+    .baseURL('https://ssp-bcc-ads.com/sdk')  // API endpoint
     .enableLogging(true)                     // Enable console logging
     .enableDebugMode(true)                   // Enable debug mode
     .defaultAdTimeout(30000)                 // Timeout in milliseconds
@@ -310,10 +371,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Initial release
 - Multi-platform support (Android, iOS, Web, Desktop)
 - Image, Video, and Native ad support
-- Multiple ad positions
-- Comprehensive error handling
-- Production-ready logging
+- Multiple ad positions with dynamic styling
+- VAST video ad support with IMA SDK integration
+- Responsive native ads with flexible layouts
+- Position override functionality for testing
+- Comprehensive error handling and logging
+- Production-ready SDKLogger implementation
 - Unified API across all platforms
+- Real-time position changes with visual feedback
 
 ---
 

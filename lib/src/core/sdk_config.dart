@@ -62,7 +62,7 @@ class SDKConfig {
 
 /// Builder class for SDKConfig
 class SDKConfigBuilder {
-  String _baseURL = 'https://localhost:3000';
+  String _baseURL = 'https://ssp-bcc-ads.com/sdk';
   bool _enableLogging = true;
   bool _enableDebugMode = false;
   int _defaultAdTimeout = 30000;

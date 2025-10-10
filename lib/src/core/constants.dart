@@ -2,7 +2,7 @@
 /// Similar to iOS version but adapted for Flutter
 class Constants {
   /// Base URL for API requests
-  static const String baseURL = 'http://localhost:3000/api/sdk';
+  static const String baseURL = 'https://ssp-bcc-ads.com/sdk';
 
   /// Default timeout in milliseconds
   static const int defaultTimeoutMs = 30000;
@@ -28,7 +28,7 @@ class Constants {
   static const String userAgentPrefix = 'BidscubeSDK-Flutter';
 
   /// SDK Version
-  static const String sdkVersion = '1.0.0';
+  static const String sdkVersion = '0.1.0';
 
   /// Error Codes
   static const int errorCodeInvalidURL = -1;

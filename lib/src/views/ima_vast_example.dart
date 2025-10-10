@@ -23,7 +23,7 @@ class _ImaVastExampleState extends State<ImaVastExample> {
   Future<void> _initializeSDK() async {
     try {
       await BidscubeSDK.initialize(
-        config: SDKConfig(baseURL: 'http://localhost:3000'),
+        config: SDKConfig(baseURL: 'https://ssp-bcc-ads.com/sdk'),
         useFlutterOnly: true, // Use Flutter-only mode with IMA SDK
       );
 
@@ -31,7 +31,7 @@ class _ImaVastExampleState extends State<ImaVastExample> {
         _isInitialized = true;
       });
     } catch (e) {
-      print('Failed to initialize SDK: $e');
+      SDKLogger.error('Failed to initialize SDK', e);
     }
   }
 
@@ -39,7 +39,9 @@ class _ImaVastExampleState extends State<ImaVastExample> {
     if (!_isInitialized) return;
 
     try {
-      final callback = TestAdCallback((message) => print('Ad: $message'));
+      final callback = TestAdCallback(
+        (message) => SDKLogger.info('Ad: $message'),
+      );
 
       final adView = await BidscubeSDK.getVideoAdView(
         '19483', // Your placement ID
@@ -50,7 +52,7 @@ class _ImaVastExampleState extends State<ImaVastExample> {
         _currentAdView = adView;
       });
     } catch (e) {
-      print('Failed to load video ad: $e');
+      SDKLogger.error('Failed to load video ad', e);
     }
   }
 

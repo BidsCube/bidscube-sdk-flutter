@@ -6,6 +6,7 @@ import '../core/vast_parser.dart';
 import '../core/url_builder.dart';
 import '../core/ad_type.dart';
 import '../core/ad_position.dart';
+import '../core/logger.dart';
 
 /// VAST Video Ad View Widget
 /// Handles VAST video ads without native code dependencies
@@ -22,9 +23,6 @@ class VastVideoAdView extends StatefulWidget {
   /// Ad height
   final double height;
 
-  /// Base URL for ad requests
-  final String baseUrl;
-
   /// Ad type
   final AdType adType;
 
@@ -32,15 +30,14 @@ class VastVideoAdView extends StatefulWidget {
   final AdPosition position;
 
   const VastVideoAdView({
-    Key? key,
+    super.key,
     required this.placementId,
     this.callback,
     this.width = 320,
     this.height = 240,
-    this.baseUrl = 'https://api.bidscube.com',
     this.adType = AdType.video,
     this.position = AdPosition.unknown,
-  }) : super(key: key);
+  });
 
   @override
   State<VastVideoAdView> createState() => _VastVideoAdViewState();
@@ -52,7 +49,7 @@ class _VastVideoAdViewState extends State<VastVideoAdView> {
   bool _hasError = false;
   String? _errorMessage;
   VastAd? _vastAd;
-  int _currentMediaFileIndex = 0;
+  final int _currentMediaFileIndex = 0;
   bool _isPlaying = false;
   bool _isCompleted = false;
   bool _isSkipped = false;
@@ -117,7 +114,6 @@ class _VastVideoAdViewState extends State<VastVideoAdView> {
         placementId: widget.placementId,
         adType: widget.adType,
         position: widget.position,
-        baseURL: widget.baseUrl,
       );
 
       if (apiURL == null) {
@@ -344,7 +340,7 @@ class _VastVideoAdViewState extends State<VastVideoAdView> {
           } else if (click.type == 'ClickThrough') {
             // Handle click-through URL
             // In a real implementation, you would open the URL
-            print('Click-through URL: ${click.url}');
+            SDKLogger.info('Click-through URL: ${click.url}');
           }
         }
       }
@@ -417,7 +413,7 @@ class _VastVideoAdViewState extends State<VastVideoAdView> {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withOpacity(0.7),
+                            Colors.black.withAlpha(179),
                           ],
                         ),
                       ),

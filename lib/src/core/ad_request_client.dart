@@ -25,15 +25,21 @@ class AdRequestClient {
     Map<String, String>? additionalHeaders,
   }) async {
     try {
+      final headers = {
+        'X-Placement-ID': placementId,
+        'X-Ad-Type': 'image',
+        ...additionalHeaders ?? {},
+      };
+
+      SDKLogger.info('Requesting image ad: $placementId');
+
       final response = await _makeRequest(
         endpoint: '/ads/image',
         method: 'GET',
-        headers: {
-          'X-Placement-ID': placementId,
-          'X-Ad-Type': 'image',
-          ...additionalHeaders ?? {},
-        },
+        headers: headers,
       );
+
+      SDKLogger.info('Image ad response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -55,16 +61,22 @@ class AdRequestClient {
     Map<String, String>? additionalHeaders,
   }) async {
     try {
+      final headers = {
+        'X-Placement-ID': placementId,
+        'X-Ad-Type': 'video',
+        'Accept': 'application/xml',
+        ...additionalHeaders ?? {},
+      };
+
+      SDKLogger.info('Requesting video ad: $placementId');
+
       final response = await _makeRequest(
         endpoint: '/ads/vast',
         method: 'GET',
-        headers: {
-          'X-Placement-ID': placementId,
-          'X-Ad-Type': 'video',
-          'Accept': 'application/xml',
-          ...additionalHeaders ?? {},
-        },
+        headers: headers,
       );
+
+      SDKLogger.info('Video ad response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         return response.body;
@@ -86,15 +98,21 @@ class AdRequestClient {
     Map<String, String>? additionalHeaders,
   }) async {
     try {
+      final headers = {
+        'X-Placement-ID': placementId,
+        'X-Ad-Type': 'native',
+        ...additionalHeaders ?? {},
+      };
+
+      SDKLogger.info('Requesting native ad: $placementId');
+
       final response = await _makeRequest(
         endpoint: '/ads/native',
         method: 'GET',
-        headers: {
-          'X-Placement-ID': placementId,
-          'X-Ad-Type': 'native',
-          ...additionalHeaders ?? {},
-        },
+        headers: headers,
       );
+
+      SDKLogger.info('Native ad response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -116,15 +134,21 @@ class AdRequestClient {
     Map<String, String>? additionalHeaders,
   }) async {
     try {
+      final headers = {
+        'X-Placement-ID': placementId,
+        'X-Ad-Type': 'banner',
+        ...additionalHeaders ?? {},
+      };
+
+      SDKLogger.info('Requesting banner ad: $placementId');
+
       final response = await _makeRequest(
         endpoint: '/ads/banner',
         method: 'GET',
-        headers: {
-          'X-Placement-ID': placementId,
-          'X-Ad-Type': 'banner',
-          ...additionalHeaders ?? {},
-        },
+        headers: headers,
       );
+
+      SDKLogger.info('Banner ad response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -237,7 +261,6 @@ class AdRequestClient {
   }
 }
 
-/// Exception for ad request errors
 class AdRequestException implements Exception {
   final String message;
   final int statusCode;
@@ -248,9 +271,7 @@ class AdRequestException implements Exception {
   String toString() => 'AdRequestException: $message (Status: $statusCode)';
 }
 
-/// Ad request configuration
 class AdRequestConfig {
-  final String baseUrl;
   final Duration timeout;
   final Map<String, String> defaultHeaders;
   final bool enableLogging;
@@ -258,7 +279,6 @@ class AdRequestConfig {
   final int maxRetries;
 
   const AdRequestConfig({
-    required this.baseUrl,
     this.timeout = const Duration(seconds: 30),
     this.defaultHeaders = const {},
     this.enableLogging = true,
@@ -267,13 +287,10 @@ class AdRequestConfig {
   });
 
   factory AdRequestConfig.defaultConfig() {
-    return const AdRequestConfig(baseUrl: 'https://api.bidscube.com');
+    return const AdRequestConfig();
   }
 
   factory AdRequestConfig.testConfig() {
-    return const AdRequestConfig(
-      baseUrl: 'https://test-api.bidscube.com',
-      enableLogging: true,
-    );
+    return const AdRequestConfig(enableLogging: true);
   }
 }
