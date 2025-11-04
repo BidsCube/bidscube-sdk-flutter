@@ -1,6 +1,7 @@
 import 'logger.dart';
 
 /// Ad callback interface for BidsCube SDK
+/// Ad callback interface for BidsCube SDK
 abstract class AdCallback {
   /// Called when ad starts loading
   void onAdLoading(String placementId);
@@ -31,6 +32,7 @@ abstract class AdCallback {
 }
 
 /// Default implementation of AdCallback
+/// Default implementation of [AdCallback].
 class DefaultAdCallback implements AdCallback {
   @override
   void onAdLoading(String placementId) {

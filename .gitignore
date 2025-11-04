@@ -5,3 +5,5 @@ pubspec.lock
 build
 *.iml
 analysis_options.yaml
+ios/.build
+.DS_Store

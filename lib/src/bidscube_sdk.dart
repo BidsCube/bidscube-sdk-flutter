@@ -202,6 +202,14 @@ class BidscubeSDK {
     _config = null;
   }
 
+  /// Get SKAdNetwork IDs from Info.plist
+  ///
+  /// Returns a list of SKAdNetwork identifiers configured in the app's Info.plist
+  static Future<List<String>> getSKAdNetworkIds() async {
+    _checkInitialized();
+    return await _platform.getSKAdNetworkIds();
+  }
+
   /// Check if SDK is initialized
   static void _checkInitialized() {
     if (!_isInitialized) {

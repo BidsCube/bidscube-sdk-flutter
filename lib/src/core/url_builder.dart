@@ -122,12 +122,14 @@ class URLBuilder {
       String language;
 
       if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
         platform = 'Android';
-        deviceWidth = androidInfo.displayMetrics.widthPx.toString();
-        deviceHeight = androidInfo.displayMetrics.heightPx.toString();
-        userAgent =
-            '${packageInfo.appName}/${packageInfo.version} (Android ${androidInfo.version.release}; ${androidInfo.model})';
+        deviceWidth = '375';
+        deviceHeight = '812';
+        userAgent = '${packageInfo.appName}/${packageInfo.version} (Flutter)';
+        // deviceWidth = androidInfo.displayMetrics.widthPx.toString();
+        // deviceHeight = androidInfo.displayMetrics.heightPx.toString();
+        // userAgent =
+        //     '${packageInfo.appName}/${packageInfo.version} (Android ${androidInfo.version.release}; ${androidInfo.model})';
         language = 'en'; // Default language
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;

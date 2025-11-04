@@ -264,4 +264,12 @@ class FlutterOnlyBidscube extends BidscubePlatform {
     _callbacks.clear();
     SDKLogger.info('Flutter-only SDK cleanup completed');
   }
+
+  @override
+  Future<List<String>> getSKAdNetworkIds() async {
+    // In Flutter-only mode, we can't access native Info.plist
+    // Return an empty list or mock data for testing
+    SDKLogger.info('SKAdNetwork extraction not available in Flutter-only mode');
+    return [];
+  }
 }

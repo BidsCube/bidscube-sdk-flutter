@@ -251,12 +251,11 @@ final config = SDKConfig.builder()
 
 ## Test Placement IDs
 
-| Placement ID  | Ad Type | Description                      |
-| ------------- | ------- | -------------------------------- |
-| `19483`       | Video   | Test video ad with VAST response |
-| `test_image`  | Image   | Test image ad                    |
-| `test_native` | Native  | Test native ad                   |
-| `test_banner` | Banner  | Test banner ad                   |
+| Placement ID | Ad Type | Description                      |
+| ------------ | ------- | -------------------------------- |
+| `19481`      | Banner  | Test banner ad                   |
+| `19483`      | Video   | Test video ad with VAST response |
+| `19487`      | Native  | Test native ad                   |
 
 ## Running the Test App
 

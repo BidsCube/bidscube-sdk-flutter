@@ -132,7 +132,7 @@ class Constants {
 
   /// Default Privacy Values
   static const String defaultGdprConsent = '0';
-  static const String defaultUsPrivacy = '1---';
+  static const String defaultUsPrivacy = '1';
   static const String defaultCcpa = '0';
   static const String defaultCoppa = '0';
   static const String defaultDoNotTrack = '0';

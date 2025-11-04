@@ -29,16 +29,25 @@ class MethodChannelBidscube extends BidscubePlatform {
     AdPosition position,
   ) async {
     try {
+      SDKLogger.info(
+        'Requesting native image ad view for placement: $placementId',
+      );
+
       final result = await _channel.invokeMethod('getImageAdView', {
         'placementId': placementId,
         'position': position.value,
       });
 
+      SDKLogger.info('Received result from native: $result');
+
       if (callback != null) {
         _setCallback(placementId, callback);
       }
 
-      return _createAdWidget(result, placementId, callback);
+      final widget = _createAdWidget(result, placementId, callback);
+      SDKLogger.info('Created ad widget: ${widget.runtimeType}');
+
+      return widget;
     } on PlatformException catch (e) {
       SDKLogger.error('Failed to get image ad view', e);
       rethrow;
@@ -268,6 +277,20 @@ class MethodChannelBidscube extends BidscubePlatform {
     }
   }
 
+  @override
+  Future<List<String>> getSKAdNetworkIds() async {
+    try {
+      final result = await _channel.invokeMethod('getSKAdNetworkIds');
+      if (result is List) {
+        return result.cast<String>();
+      }
+      return [];
+    } on PlatformException catch (e) {
+      SDKLogger.error('Failed to get SKAdNetwork IDs', e);
+      return [];
+    }
+  }
+
   void _setCallback(String placementId, AdCallback callback) {
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
@@ -311,13 +334,28 @@ class MethodChannelBidscube extends BidscubePlatform {
     String placementId,
     AdCallback? callback,
   ) {
-    // This is a placeholder - in a real implementation, you would create
-    // platform-specific widgets based on the result
-    return Container(
+    // Check if result contains a viewId for native views
+    if (result is Map && result.containsKey('viewId')) {
+      final viewId = result['viewId'] as String;
+      return SizedBox(
+        width: 320,
+        height: 240,
+        child: UiKitView(
+          viewType: viewId,
+          creationParams: {'placementId': placementId},
+          creationParamsCodec: const StandardMessageCodec(),
+        ),
+      );
+    }
+
+    // Fallback for string results or other formats
+    return SizedBox(
       width: 320,
       height: 240,
-      color: Colors.grey[300],
-      child: Center(child: Text('Ad View for $placementId')),
+      child: Container(
+        color: Colors.grey[300],
+        child: Center(child: Text('Ad View for $placementId')),
+      ),
     );
   }
 }

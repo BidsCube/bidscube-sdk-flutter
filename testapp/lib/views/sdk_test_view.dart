@@ -209,6 +209,29 @@ class _SDKTestViewState extends State<SDKTestView> {
     );
   }
 
+  Future<void> _extractSKAdNetworkIds() async {
+    if (!_isInitialized) {
+      _addLog('SDK not initialized - cannot extract SKAdNetwork IDs');
+      return;
+    }
+
+    try {
+      _addLog('Extracting SKAdNetwork IDs from Info.plist...');
+      final skAdNetworkIds = await BidscubeSDK.getSKAdNetworkIds();
+
+      if (skAdNetworkIds.isEmpty) {
+        _addLog('No SKAdNetwork IDs found in Info.plist');
+      } else {
+        _addLog('Found ${skAdNetworkIds.length} SKAdNetwork IDs:');
+        for (int i = 0; i < skAdNetworkIds.length; i++) {
+          _addLog('  ${i + 1}. ${skAdNetworkIds[i]}');
+        }
+      }
+    } catch (e) {
+      _addLog('Failed to extract SKAdNetwork IDs: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -544,6 +567,11 @@ class _SDKTestViewState extends State<SDKTestView> {
                       onPressed: _showLogs,
                       label: 'Show Logs',
                       color: Colors.blue,
+                    ),
+                    CustomFilledButton(
+                      onPressed: _extractSKAdNetworkIds,
+                      label: 'Extract SKAdNetwork IDs',
+                      color: Colors.purple,
                     ),
                     CustomFilledButton(
                       onPressed: _resetSDK,

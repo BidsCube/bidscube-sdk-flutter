@@ -1,0 +1,75 @@
+name: Publish to pub.dev and Create Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.0"
+          channel: "stable"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Check pubspec.yaml
+        run: |
+          # Remove publish_to: null to enable publishing
+          sed -i 's/publish_to: null/publish_to: "https://pub.dev"/' pubspec.yaml
+
+      - name: Verify package
+        run: flutter pub publish --dry-run
+
+      - name: Publish to pub.dev
+        run: flutter pub publish --force
+        env:
+          PUB_TOKEN: ${{ secrets.PUB_DEV_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          body: |
+            ## What's Changed
+
+            This release includes the latest version of the BidsCube Flutter SDK.
+
+            ### Installation
+            ```yaml
+            dependencies:
+              bidscube_sdk_flutter: ^${{ github.ref_name }}
+            ```
+
+            ### Documentation
+            - [pub.dev package](https://pub.dev/packages/bidscube_sdk_flutter)
+            - [GitHub repository](https://github.com/bidscube/bidscube-sdk-flutter)
+
+            ### Changelog
+            Please refer to the [CHANGELOG.md](https://github.com/bidscube/bidscube-sdk-flutter/blob/main/CHANGELOG.md) for detailed changes.
+          draft: false
+          prerelease: false

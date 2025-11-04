@@ -1,7 +1,8 @@
-// BidsCube Flutter SDK
-//
-// A comprehensive Flutter SDK for displaying image, video, and native ads
-// across all platforms (Android, iOS, Web, Desktop).
+/// BidsCube Flutter SDK
+///
+/// A comprehensive Flutter SDK for displaying image, video, and native ads
+/// across all platforms (Android, iOS, Web, Desktop).
+library;
 
 // Core SDK
 export 'src/bidscube_sdk.dart';

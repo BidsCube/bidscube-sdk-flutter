@@ -77,4 +77,7 @@ abstract class BidscubePlatform {
 
   /// Cleanup SDK
   void cleanup();
+
+  /// Get SKAdNetwork IDs from Info.plist
+  Future<List<String>> getSKAdNetworkIds();
 }

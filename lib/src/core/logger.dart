@@ -1,4 +1,9 @@
 /// Logger for BidsCube SDK
+library;
+
+import 'dart:developer';
+
+/// Logger for BidsCube SDK
 class SDKLogger {
   static bool _isEnabled = true;
   static bool _isDebugMode = false;
@@ -16,34 +21,34 @@ class SDKLogger {
   /// Log info message
   static void info(String message) {
     if (_isEnabled) {
-      print('[BidsCube SDK] INFO: $message');
+      log('[BidsCube SDK] INFO: $message', name: 'BidsCubeSDK');
     }
   }
 
   /// Log debug message
   static void debug(String message) {
     if (_isEnabled && _isDebugMode) {
-      print('[BidsCube SDK] DEBUG: $message');
+      log('[BidsCube SDK] DEBUG: $message', name: 'BidsCubeSDK');
     }
   }
 
   /// Log warning message
   static void warning(String message) {
     if (_isEnabled) {
-      print('[BidsCube SDK] WARNING: $message');
+      log('[BidsCube SDK] WARNING: $message', name: 'BidsCubeSDK', level: 900);
     }
   }
 
   /// Log error message
   static void error(String message, [dynamic error, StackTrace? stackTrace]) {
     if (_isEnabled) {
-      print('[BidsCube SDK] ERROR: $message');
-      if (error != null) {
-        print('[BidsCube SDK] Error details: $error');
-      }
-      if (stackTrace != null) {
-        print('[BidsCube SDK] Stack trace: $stackTrace');
-      }
+      log(
+        '[BidsCube SDK] ERROR: $message',
+        name: 'BidsCubeSDK',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 }

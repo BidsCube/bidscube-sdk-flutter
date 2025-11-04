@@ -61,16 +61,36 @@ class _ConsentTestViewState extends State<ConsentTestView> {
 
   void _requestConsentInfoUpdate() {
     if (!_isInitialized) return;
+
     _addLog("Requesting consent info update...");
-    // TODO: Add callback handling
-    BidscubeSDK.requestConsentInfoUpdate(callback: BidscubeAdCallback(_addLog));
+
+    final callback = BidscubeAdCallback((message) {
+      _addLog("Consent Info Update: $message");
+      _updateConsentStatus();
+    });
+
+    try {
+      BidscubeSDK.requestConsentInfoUpdate(callback: callback);
+    } catch (e) {
+      _addLog("Error during consent info update: $e");
+    }
   }
 
   void _showConsentForm() {
     if (!_isInitialized) return;
+
     _addLog("Showing consent form...");
-    // TODO: Add callback handling
-    BidscubeSDK.showConsentForm(callback: BidscubeAdCallback(_addLog));
+
+    final callback = BidscubeAdCallback((message) {
+      _addLog("Consent Form: $message");
+      _updateConsentStatus();
+    });
+
+    try {
+      BidscubeSDK.showConsentForm(callback: callback);
+    } catch (e) {
+      _addLog("Error showing consent form: $e");
+    }
   }
 
   void _checkConsentRequired() {

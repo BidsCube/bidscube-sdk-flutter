@@ -4,13 +4,22 @@ import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 import 'package:http/http.dart' as http;
 
 /// HTTP client for making ad requests without native dependencies
+/// HTTP client for making ad requests without native dependencies
 class AdRequestClient {
   static const Duration _defaultTimeout = Duration(seconds: 30);
 
+  /// The base URL for ad requests.
   final String baseUrl;
+
+  /// The timeout duration for ad requests.
   final Duration timeout;
   final Map<String, String> _defaultHeaders;
 
+  /// Creates an [AdRequestClient].
+  ///
+  /// [baseUrl] sets the base URL for ad requests. Defaults to [Constants.baseURL].
+  /// [timeout] sets the request timeout. Defaults to 30 seconds.
+  /// [defaultHeaders] sets default headers for all requests.
   AdRequestClient({
     String? baseUrl,
     Duration? timeout,
