@@ -32,7 +32,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  bidscube_sdk_flutter: ^0.1.0
+  bidscube_sdk_flutter: ^1.1.0
 ```
 
 Then run:

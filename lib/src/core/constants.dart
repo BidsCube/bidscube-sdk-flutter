@@ -28,7 +28,7 @@ class Constants {
   static const String userAgentPrefix = 'BidscubeSDK-Flutter';
 
   /// SDK Version
-  static const String sdkVersion = '0.1.0';
+  static const String sdkVersion = '1.1.0';
 
   /// Error Codes
   static const int errorCodeInvalidURL = -1;

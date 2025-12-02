@@ -1,3 +1,13 @@
+## 1.1.0
+
+* Major API cleanup and doc updates for publishing to pub.dev
+* Fixed missing type imports (AdPosition, etc.) for platform builds
+* Updated pubspec fields for pub.dev compliance and metadata
+* Optimized builder pattern for SDKConfig (default URLs, etc.)
+* Expanded README with usage, configuration, testApp details
+* Removed example/, created testApp/ for better cross-platform demos
+* Miscellaneous bugfixes, compliance improvements, and code cleanup
+
 ## 0.1.1
 
 * Dependency updates to latest versions (Flutter, Dart, and all plugins)

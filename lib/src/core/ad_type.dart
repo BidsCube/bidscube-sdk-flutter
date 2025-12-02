@@ -2,13 +2,13 @@
 enum AdType {
   /// Image banner ads
   image,
-  
+
   /// Video ads (VAST, VPAID)
   video,
-  
+
   /// Native ads
   native,
-  
+
   /// Banner ads
   banner,
 }
