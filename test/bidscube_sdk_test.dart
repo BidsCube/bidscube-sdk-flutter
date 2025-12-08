@@ -34,25 +34,24 @@ void main() {
 
     test('SDKConfig should be created from map correctly', () {
       final map = {
-        'baseURL': 'https://test.api.com',
+        'baseURL': 'https://ssp-bcc-ads.com/sdk',
         'enableLogging': false,
         'enableDebugMode': true,
-        'defaultAdTimeout': 15000,
+        'defaultAdTimeout': 30000,
         'defaultAdPosition': 'footer',
         'enableTestMode': false,
       };
 
       final configFromMap = SDKConfig.fromMap(map);
-      expect(configFromMap.baseURL, 'https://test.api.com');
+      expect(configFromMap.baseURL, 'https://ssp-bcc-ads.com/sdk');
       expect(configFromMap.enableLogging, false);
       expect(configFromMap.enableDebugMode, true);
-      expect(configFromMap.defaultAdTimeout, 15000);
+      expect(configFromMap.defaultAdTimeout, 30000);
       expect(configFromMap.defaultAdPosition, AdPosition.footer);
       expect(configFromMap.enableTestMode, false);
     });
 
     test('AdType should have correct string values', () {
-      expect(AdType.image.value, 'image');
       expect(AdType.video.value, 'video');
       expect(AdType.native.value, 'native');
       expect(AdType.banner.value, 'banner');

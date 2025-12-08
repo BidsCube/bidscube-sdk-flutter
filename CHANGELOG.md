@@ -1,3 +1,11 @@
+## 1.2.0
+
+* Fix for Android build
+* Added onAdRenderOverride callback to notify when an ad is rendered with position override
+* Improved error handling and logging for ad loading and rendering
+* Updated dependencies to latest versions
+* Minor documentation updates and code cleanup
+
 ## 1.1.0
 
 * Major API cleanup and doc updates for publishing to pub.dev

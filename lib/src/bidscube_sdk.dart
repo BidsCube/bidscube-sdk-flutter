@@ -44,18 +44,24 @@ class BidscubeSDK {
   /// Check if using Flutter-only mode
   static bool get isFlutterOnly => _useFlutterOnly;
 
-  /// Get Image Ad View
+  /// Get Banner Ad View
   ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
   /// [position] - Ad position override
-  static Future<Widget> getImageAdView(
+  static Future<Widget> getBannerAdView(
     String placementId, {
     AdCallback? callback,
     AdPosition position = AdPosition.unknown,
+    double? borderRadius,
   }) async {
     _checkInitialized();
-    return await _platform.getImageAdView(placementId, callback, position);
+    return await _platform.getBannerAdView(
+      placementId,
+      callback,
+      position,
+      borderRadius,
+    );
   }
 
   /// Get Video Ad View
@@ -67,9 +73,15 @@ class BidscubeSDK {
     String placementId, {
     AdCallback? callback,
     AdPosition position = AdPosition.unknown,
+    double? borderRadius,
   }) async {
     _checkInitialized();
-    return await _platform.getVideoAdView(placementId, callback, position);
+    return await _platform.getVideoAdView(
+      placementId,
+      callback,
+      position,
+      borderRadius,
+    );
   }
 
   /// Get Native Ad View
@@ -81,23 +93,15 @@ class BidscubeSDK {
     String placementId, {
     AdCallback? callback,
     AdPosition position = AdPosition.unknown,
+    double? borderRadius,
   }) async {
     _checkInitialized();
-    return await _platform.getNativeAdView(placementId, callback, position);
-  }
-
-  /// Get Banner Ad View
-  ///
-  /// [placementId] - Unique placement identifier
-  /// [callback] - Ad callback handler
-  /// [position] - Ad position override
-  static Future<Widget> getBannerAdView(
-    String placementId, {
-    AdCallback? callback,
-    AdPosition position = AdPosition.unknown,
-  }) async {
-    _checkInitialized();
-    return await _platform.getBannerAdView(placementId, callback, position);
+    return await _platform.getNativeAdView(
+      placementId,
+      callback,
+      position,
+      borderRadius,
+    );
   }
 
   /// Request Ad

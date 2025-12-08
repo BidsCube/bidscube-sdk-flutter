@@ -1,8 +1,7 @@
 name: bidscube_sdk_flutter
 description: "BidsCube Flutter SDK for displaying image, video, and native ads across all platforms."
-version: 1.1.0
+version: 1.2.0
 homepage: https://github.com/bidscube/bidscube-sdk-flutter
-publish_to: null
 
 environment:
   sdk: ">=3.8.1 <4.0.0"
@@ -21,20 +20,12 @@ dependencies:
   video_player_android: ^2.8.17
   video_player_avfoundation: ^2.8.5
   video_player_platform_interface: ^6.6.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-
-flutter:
-  plugin:
-    platforms:
-      android:
-        package: com.bidscube.sdk
-        pluginClass: BidscubeSdkPlugin
-      ios:
-        pluginClass: BidscubeSdkPlugin
 
 example:
   path: example/

@@ -23,21 +23,21 @@ extension AdPositionExtension on AdPosition {
   String get value {
     switch (this) {
       case AdPosition.unknown:
-        return '0 - UNKNOWN';
+        return 'unknown';
       case AdPosition.aboveTheFold:
-        return '1 - ABOVE THE FOLD';
+        return 'above_the_fold';
       case AdPosition.dependOnTheScreenSize:
-        return '2 - DEPEND ON THE SCREEN SIZE';
+        return 'depend_on_the_screen_size';
       case AdPosition.belowTheFold:
-        return '3 - BELOW THE FOLD';
+        return 'below_the_fold';
       case AdPosition.header:
-        return '4 - HEADER';
+        return 'header';
       case AdPosition.footer:
-        return '5 - FOOTER';
+        return 'footer';
       case AdPosition.sidebar:
-        return '6 - SIDEBAR';
+        return 'sidebar';
       case AdPosition.fullScreen:
-        return '7 - FULLSCREEN';
+        return 'fullscreen';
     }
   }
 

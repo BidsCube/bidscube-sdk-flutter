@@ -4,7 +4,7 @@ A comprehensive Flutter SDK for displaying image, video, and native ads across a
 
 ## Features
 
-- **Multi-platform Support**: Android, iOS, Web, macOS, Linux, Windows
+- **Multi-platform Support**: Android, iOS
 - **Image, Video, and Native ad support**
 - **Multiple ad positions** (header, footer, sidebar, fullscreen, above/below the fold)
 - **Dynamic position-based styling** with visual feedback
@@ -32,7 +32,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  bidscube_sdk_flutter: ^1.1.0
+  bidscube_sdk_flutter: ^1.2.0
 ```
 
 Then run:
@@ -140,6 +140,94 @@ class MyAdCallback implements AdCallback {
   }
 }
 ```
+
+## Custom rendering with onAdRenderOverride
+
+If you want full control over how an ad is rendered in your app (for example to use your own native components, custom WebView handling, or a different layout), use the `onAdRenderOverride` callback on your `AdCallback` implementation.
+
+How it works
+
+- When you pass an `AdCallback` to `getBannerAdView`, `getVideoAdView`, or `getNativeAdView`, the SDK will check whether the callback's `onAdRenderOverride` is non-null.
+- If `onAdRenderOverride` is provided, the SDK will perform the ad request and call your `onAdRenderOverride(placementId, adm, position)` handler with the server response.
+  - `adm` is the ad markup or data: it may be an HTML snippet, a VAST XML (for video), or a JSON-encoded object for native ads. If the server doesn't provide a specific `adm` field the SDK will pass a JSON-encoded fallback with the full response.
+- When `onAdRenderOverride` is used, the SDK returns a placeholder widget (a SizedBox) instead of mounting the SDK-built view — you are expected to render the ad yourself inside your app UI.
+
+Recommended usage pattern
+
+1. Implement an `AdCallback` and set the `onAdRenderOverride` handler. In the handler parse the `adm` and create a Widget to display the ad.
+2. Insert that widget into your widget tree (for example by storing it in state and calling `setState`) at the desired location.
+3. The SDK still calls lifecycle methods (`onAdLoading`, `onAdLoaded`, `onAdDisplayed`, `onAdFailed`) so you can track ad state as before.
+
+Example: render HTML/creative in a WebView
+
+```dart
+class ClientAdWidget extends StatefulWidget {
+  final String placementId;
+  ClientAdWidget(this.placementId);
+  @override
+  State createState() => _ClientAdWidgetState();
+}
+
+class _ClientAdWidgetState extends State<ClientAdWidget> {
+  String? _html;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_html == null) return SizedBox(width: 320, height: 240);
+    return SizedBox(
+      width: 320,
+      height: 240,
+      child: WebViewWidget(controller: WebViewController()..loadHtmlString(_html!)),
+    );
+  }
+
+  void updateHtml(String html) => setState(() => _html = html);
+}
+
+// When you register the callback (example in a State object):
+final clientAdWidgetKey = GlobalKey<_ClientAdWidgetState>();
+final clientWidget = ClientAdWidget('20212');
+
+final callback = MyAdCallback();
+callback.onAdRenderOverride = (placementId, adm, position) {
+  // adm may already be full HTML; if it's JSON-encoded, extract the HTML from adm
+  final html = adm; // or parse adm to extract HTML fragment
+  clientAdWidgetKey.currentState?.updateHtml(html);
+};
+
+// Add the clientWidget (with key) into your UI; then call:
+await BidscubeSDK.getBannerAdView('20212', callback: callback);
+```
+
+Example: parse native JSON and build a Flutter widget
+
+```dart
+callback.onAdRenderOverride = (placementId, adm, position) {
+  // adm may be JSON; try to decode
+  try {
+    final data = json.decode(adm) as Map<String, dynamic>;
+    // Extract fields (title, image, cta, etc.) and create widget
+    final title = data['title'] ?? '';
+    final imageUrl = data['imageUrl'] ?? '';
+    setState(() {
+      _clientAdWidget = GestureDetector(
+        onTap: () => _onAdClicked(placementId),
+        child: Column(children: [Text(title), Image.network(imageUrl), /* cta */]),
+      );
+    });
+  } catch (e) {
+    // Fallback: treat adm as plain string and log
+    print('Failed to parse adm: $e');
+  }
+};
+```
+
+Notes and tips
+
+- The SDK will call your lifecycle methods (onAdLoading/onAdLoaded/onAdDisplayed/onAdFailed) so you can show placeholders or retry UI while the network request is in progress.
+- For VAST video ADM you typically receive XML — you can either feed it to a VAST/IMA player or implement your own video player. The SDK's IMA integration is used only when the SDK renders the view itself; when you override rendering you are responsible for playing/pausing and tracking video events.
+- If your `onAdRenderOverride` throws an error, the SDK will log the exception and continue; consider adding try/catch around parsing and rendering logic to avoid losing lifecycle notifications.
+- When using custom rendering, make sure to call `BidscubeSDK.setAdCallback(placementId, callback)` if you need SDK-level registration for later events (optional — passing callback directly to `get*AdView` is usually sufficient).
 
 ## Usage Examples
 
@@ -253,9 +341,9 @@ final config = SDKConfig.builder()
 
 | Placement ID | Ad Type | Description                      |
 | ------------ | ------- | -------------------------------- |
-| `19481`      | Banner  | Test banner ad                   |
-| `19483`      | Video   | Test video ad with VAST response |
-| `19487`      | Native  | Test native ad                   |
+| `20212`      | Banner  | Test banner ad                   |
+| `20213`      | Video   | Test video ad with VAST response |
+| `20214`      | Native  | Test native ad                   |
 
 ## Running the Test App
 
@@ -353,10 +441,6 @@ flutter analyze
 # Build for all platforms
 flutter build apk --release
 flutter build ios --release
-flutter build web --release
-flutter build macos --release
-flutter build linux --release
-flutter build windows --release
 ```
 
 ## License

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'bidscube_platform.dart';
 import '../core/sdk_config.dart';
@@ -9,6 +11,7 @@ import '../core/ad_request_client.dart';
 import '../views/webview_image_ad_view.dart';
 import '../views/ima_vast_video_ad_view.dart';
 import '../views/flutter_native_ad_view.dart';
+import '../core/constants.dart';
 
 /// Flutter-only implementation of BidsCube SDK
 /// Uses WebView, video_player, and custom widgets instead of native code
@@ -33,28 +36,46 @@ class FlutterOnlyBidscube extends BidscubePlatform {
   }
 
   @override
-  Future<Widget> getImageAdView(
+  Future<Widget> getBannerAdView(
     String placementId,
     AdCallback? callback,
-    AdPosition position,
-  ) async {
+    AdPosition position, [
+    double? borderRadius,
+  ]) async {
     try {
       if (callback != null) {
         _callbacks[placementId] = callback;
+        SDKLogger.info(
+          'Registered callback for placement: $placementId (banner)',
+        );
+
+        // If host provided onAdRenderOverride, trigger request immediately so host can render the ad.
+        if (callback.onAdRenderOverride != null) {
+          // Fire-and-forget: request ad and let the callback handle rendering.
+          requestAd(
+            placementId: placementId,
+            adType: AdType.banner,
+            position: position,
+            callback: callback,
+          );
+          // Return an empty placeholder since host will render the ad themselves
+          return SizedBox(
+            width: Constants.defaultAdWidth,
+            height: Constants.defaultAdHeight,
+          );
+        }
       }
 
+      // Use WebView for banner/image ads (default SDK rendering)
       return WebViewImageAdView(
         placementId: placementId,
         callback: callback,
-        adType: AdType.image,
+        adType: AdType.banner,
         position: position,
-        onPositionChanged: (newPosition) {
-          SDKLogger.info('Image ad position changed to: ${newPosition.value}');
-          // In a real implementation, this would update the UI or notify the parent
-        },
+        borderRadius: borderRadius,
       );
     } catch (e) {
-      SDKLogger.error('Failed to get image ad view', e);
+      SDKLogger.error('Failed to get banner ad view', e);
       rethrow;
     }
   }
@@ -63,11 +84,28 @@ class FlutterOnlyBidscube extends BidscubePlatform {
   Future<Widget> getVideoAdView(
     String placementId,
     AdCallback? callback,
-    AdPosition position,
-  ) async {
+    AdPosition position, [
+    double? borderRadius,
+  ]) async {
     try {
       if (callback != null) {
         _callbacks[placementId] = callback;
+        SDKLogger.info(
+          'Registered callback for placement: $placementId (video)',
+        );
+
+        if (callback.onAdRenderOverride != null) {
+          requestAd(
+            placementId: placementId,
+            adType: AdType.video,
+            position: position,
+            callback: callback,
+          );
+          return SizedBox(
+            width: Constants.defaultAdWidth,
+            height: Constants.defaultAdHeight,
+          );
+        }
       }
 
       return ImaVastVideoAdView(
@@ -76,10 +114,7 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         baseUrl: _adClient.baseUrl,
         adType: AdType.video,
         position: position,
-        onPositionChanged: (newPosition) {
-          SDKLogger.info('Video ad position changed to: ${newPosition.value}');
-          // In a real implementation, this would update the UI or notify the parent
-        },
+        borderRadius: borderRadius,
       );
     } catch (e) {
       SDKLogger.error('Failed to get video ad view', e);
@@ -91,11 +126,28 @@ class FlutterOnlyBidscube extends BidscubePlatform {
   Future<Widget> getNativeAdView(
     String placementId,
     AdCallback? callback,
-    AdPosition position,
-  ) async {
+    AdPosition position, [
+    double? borderRadius,
+  ]) async {
     try {
       if (callback != null) {
         _callbacks[placementId] = callback;
+        SDKLogger.info(
+          'Registered callback for placement: $placementId (native)',
+        );
+
+        if (callback.onAdRenderOverride != null) {
+          requestAd(
+            placementId: placementId,
+            adType: AdType.native,
+            position: position,
+            callback: callback,
+          );
+          return SizedBox(
+            width: Constants.defaultAdWidth,
+            height: Constants.defaultAdHeight,
+          );
+        }
       }
 
       return FlutterNativeAdView(
@@ -103,43 +155,10 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         callback: callback,
         adType: AdType.native,
         position: position,
-        onPositionChanged: (newPosition) {
-          SDKLogger.info('Native ad position changed to: ${newPosition.value}');
-          // In a real implementation, this would update the UI or notify the parent
-        },
+        borderRadius: borderRadius,
       );
     } catch (e) {
       SDKLogger.error('Failed to get native ad view', e);
-      rethrow;
-    }
-  }
-
-  @override
-  Future<Widget> getBannerAdView(
-    String placementId,
-    AdCallback? callback,
-    AdPosition position,
-  ) async {
-    try {
-      if (callback != null) {
-        _callbacks[placementId] = callback;
-      }
-
-      // Use WebView for banner ads as well
-      return WebViewImageAdView(
-        placementId: placementId,
-        callback: callback,
-        width: 320,
-        height: 50, // Standard banner height
-        adType: AdType.banner,
-        position: position,
-        onPositionChanged: (newPosition) {
-          SDKLogger.info('Banner ad position changed to: ${newPosition.value}');
-          // In a real implementation, this would update the UI or notify the parent
-        },
-      );
-    } catch (e) {
-      SDKLogger.error('Failed to get banner ad view', e);
       rethrow;
     }
   }
@@ -156,26 +175,25 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         _callbacks[placementId] = callback;
       }
 
-      // Track ad request
-      await _adClient.trackAdEvent(
-        placementId: placementId,
-        event: 'ad_requested',
-        eventData: 'type:${adType.value},position:${position.value}',
-      );
-
-      // Simulate ad request based on type
+      // Ad request based on type
       switch (adType) {
-        case AdType.image:
-          await _adClient.requestImageAd(placementId: placementId);
+        case AdType.banner:
+          await _adClient.requestBannerAd(
+            placementId: placementId,
+            callback: callback,
+          );
           break;
         case AdType.video:
-          await _adClient.requestVideoAd(placementId: placementId);
+          await _adClient.requestVideoAd(
+            placementId: placementId,
+            callback: callback,
+          );
           break;
         case AdType.native:
-          await _adClient.requestNativeAd(placementId: placementId);
-          break;
-        case AdType.banner:
-          await _adClient.requestBannerAd(placementId: placementId);
+          await _adClient.requestNativeAd(
+            placementId: placementId,
+            callback: callback,
+          );
           break;
       }
 

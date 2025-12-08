@@ -23,17 +23,18 @@ class MethodChannelBidscube extends BidscubePlatform {
   }
 
   @override
-  Future<Widget> getImageAdView(
+  Future<Widget> getBannerAdView(
     String placementId,
     AdCallback? callback,
-    AdPosition position,
-  ) async {
+    AdPosition position, [
+    double? borderRadius,
+  ]) async {
     try {
       SDKLogger.info(
-        'Requesting native image ad view for placement: $placementId',
+        'Requesting native banner ad view for placement: $placementId',
       );
 
-      final result = await _channel.invokeMethod('getImageAdView', {
+      final result = await _channel.invokeMethod('getBannerAdView', {
         'placementId': placementId,
         'position': position.value,
       });
@@ -49,7 +50,7 @@ class MethodChannelBidscube extends BidscubePlatform {
 
       return widget;
     } on PlatformException catch (e) {
-      SDKLogger.error('Failed to get image ad view', e);
+      SDKLogger.error('Failed to get banner ad view', e);
       rethrow;
     }
   }
@@ -58,8 +59,9 @@ class MethodChannelBidscube extends BidscubePlatform {
   Future<Widget> getVideoAdView(
     String placementId,
     AdCallback? callback,
-    AdPosition position,
-  ) async {
+    AdPosition position, [
+    double? borderRadius,
+  ]) async {
     try {
       final result = await _channel.invokeMethod('getVideoAdView', {
         'placementId': placementId,
@@ -81,8 +83,9 @@ class MethodChannelBidscube extends BidscubePlatform {
   Future<Widget> getNativeAdView(
     String placementId,
     AdCallback? callback,
-    AdPosition position,
-  ) async {
+    AdPosition position, [
+    double? borderRadius,
+  ]) async {
     try {
       final result = await _channel.invokeMethod('getNativeAdView', {
         'placementId': placementId,
@@ -96,29 +99,6 @@ class MethodChannelBidscube extends BidscubePlatform {
       return _createAdWidget(result, placementId, callback);
     } on PlatformException catch (e) {
       SDKLogger.error('Failed to get native ad view', e);
-      rethrow;
-    }
-  }
-
-  @override
-  Future<Widget> getBannerAdView(
-    String placementId,
-    AdCallback? callback,
-    AdPosition position,
-  ) async {
-    try {
-      final result = await _channel.invokeMethod('getBannerAdView', {
-        'placementId': placementId,
-        'position': position.value,
-      });
-
-      if (callback != null) {
-        _setCallback(placementId, callback);
-      }
-
-      return _createAdWidget(result, placementId, callback);
-    } on PlatformException catch (e) {
-      SDKLogger.error('Failed to get banner ad view', e);
       rethrow;
     }
   }

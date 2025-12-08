@@ -27,8 +27,8 @@ class FlutterNativeAdView extends StatefulWidget {
   /// Ad position
   final AdPosition position;
 
-  /// Position change callback
-  final Function(AdPosition)? onPositionChanged;
+  /// Optional border radius for the ad view
+  final double? borderRadius;
 
   const FlutterNativeAdView({
     super.key,
@@ -39,7 +39,7 @@ class FlutterNativeAdView extends StatefulWidget {
     this.style,
     this.adType = AdType.native,
     this.position = AdPosition.unknown,
-    this.onPositionChanged,
+    this.borderRadius,
   });
 
   @override
@@ -134,16 +134,51 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
                   _currentPosition = serverPosition;
                 });
               }
-
-              // Notify parent widget about position change
-              widget.onPositionChanged?.call(serverPosition);
             }
 
             // Check if the response has an 'adm' field with nested JSON
             if (data['adm'] != null) {
               final admData = json.decode(data['adm']);
+
+              // If host app provided an override callback, call it and skip SDK rendering
+              if (widget.callback?.onAdRenderOverride != null) {
+                SDKLogger.info(
+                  'Calling onAdRenderOverride for placement ${widget.placementId} (native)',
+                );
+                try {
+                  final admString = data['adm'] != null
+                      ? (data['adm'] is String
+                            ? data['adm'] as String
+                            : json.encode(admData))
+                      : json.encode(data);
+                  widget.callback?.onAdRenderOverride!(
+                    widget.placementId,
+                    admString,
+                    _currentPosition,
+                  );
+                  // Host app will render; skip SDK rendering by returning null
+                  return null;
+                } catch (e) {
+                  SDKLogger.error('Error in onAdRenderOverride callback', e);
+                }
+
+                // Host app will render the ad. Mark loading finished and notify lifecycle callbacks.
+                if (mounted) {
+                  setState(() {
+                    _isLoading = false;
+                  });
+                }
+                widget.callback?.onAdLoaded(widget.placementId);
+                widget.callback?.onAdDisplayed(widget.placementId);
+
+                // Return null to indicate SDK should not render
+                return null;
+              }
+
               // Extract native ad data from the nested structure
-              final nativeAdData = _parseNativeAdFromAdm(admData);
+              final nativeAdData = _parseNativeAdFromAdm(
+                admData as Map<String, dynamic>,
+              );
               return nativeAdData;
             } else {
               // Direct native ad data
@@ -276,15 +311,23 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
 
   @override
   Widget build(BuildContext context) {
+    // If host app provided override, don't render SDK UI here.
+    if (widget.callback?.onAdRenderOverride != null) {
+      return SizedBox(width: widget.width, height: widget.height);
+    }
+    final positionStyle = _getPositionBasedStyle();
+
     return Container(
       width: widget.width,
       height: widget.height,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
+        border: positionStyle.border,
+        borderRadius: BorderRadius.circular(positionStyle.borderRadius ?? 0.0),
+        color: positionStyle.backgroundColor,
+        boxShadow: positionStyle.boxShadow,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(positionStyle.borderRadius ?? 0.0),
         child: _isLoading
             ? const Center(
                 child: Column(
@@ -328,7 +371,7 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
       case AdPosition.unknown:
         return BidscubePositionStyle(
           backgroundColor: Colors.white,
-          borderRadius: 8.0,
+          borderRadius: widget.borderRadius ?? 8.0,
           border: Border.all(color: Colors.grey[300]!),
           boxShadow: [
             BoxShadow(
@@ -341,7 +384,7 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
       case AdPosition.aboveTheFold:
         return BidscubePositionStyle(
           backgroundColor: Colors.blue[50]!,
-          borderRadius: 12.0,
+          borderRadius: widget.borderRadius ?? 12.0,
           border: Border.all(color: Colors.blue[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -354,7 +397,7 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
       case AdPosition.belowTheFold:
         return BidscubePositionStyle(
           backgroundColor: Colors.green[50]!,
-          borderRadius: 10.0,
+          borderRadius: widget.borderRadius ?? 10.0,
           border: Border.all(color: Colors.green[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -367,7 +410,7 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
       case AdPosition.header:
         return BidscubePositionStyle(
           backgroundColor: Colors.orange[50]!,
-          borderRadius: 6.0,
+          borderRadius: widget.borderRadius ?? 6.0,
           border: Border.all(color: Colors.orange[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -380,7 +423,7 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
       case AdPosition.footer:
         return BidscubePositionStyle(
           backgroundColor: Colors.purple[50]!,
-          borderRadius: 6.0,
+          borderRadius: widget.borderRadius ?? 6.0,
           border: Border.all(color: Colors.purple[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -393,7 +436,7 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
       case AdPosition.sidebar:
         return BidscubePositionStyle(
           backgroundColor: Colors.teal[50]!,
-          borderRadius: 8.0,
+          borderRadius: widget.borderRadius ?? 8.0,
           border: Border.all(color: Colors.teal[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -406,7 +449,7 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
       case AdPosition.fullScreen:
         return BidscubePositionStyle(
           backgroundColor: Colors.red[50]!,
-          borderRadius: 16.0,
+          borderRadius: widget.borderRadius ?? 16.0,
           border: Border.all(color: Colors.red[200]!, width: 3),
           boxShadow: [
             BoxShadow(
@@ -419,7 +462,7 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
       case AdPosition.dependOnTheScreenSize:
         return BidscubePositionStyle(
           backgroundColor: Colors.amber[50]!,
-          borderRadius: 10.0,
+          borderRadius: widget.borderRadius ?? 10.0,
           border: Border.all(color: Colors.amber[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -441,36 +484,25 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
         final isSmallScreen = constraints.maxWidth < 300;
         final isMediumScreen = constraints.maxWidth < 500;
 
-        // Apply position-based styling
-        final positionStyle = _getPositionBasedStyle();
-
         return GestureDetector(
           onTap: _onAdClicked,
-          child: Container(
-            decoration: BoxDecoration(
-              color: positionStyle.backgroundColor,
-              borderRadius: BorderRadius.circular(positionStyle.borderRadius),
-              border: positionStyle.border,
-              boxShadow: positionStyle.boxShadow,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with icon and advertiser
-                _buildAdHeader(adData, style, isSmallScreen),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with icon and advertiser
+              _buildAdHeader(adData, style, isSmallScreen),
 
-                // Main content - responsive layout
-                Expanded(
-                  child: isSmallScreen
-                      ? _buildSmallScreenLayout(adData, style)
-                      : _buildLargeScreenLayout(adData, style, isMediumScreen),
-                ),
+              // Main content - responsive layout
+              Expanded(
+                child: isSmallScreen
+                    ? _buildSmallScreenLayout(adData, style)
+                    : _buildLargeScreenLayout(adData, style, isMediumScreen),
+              ),
 
-                // Call to action button
-                if (adData.callToAction != null)
-                  _buildCallToActionButton(adData, style, isSmallScreen),
-              ],
-            ),
+              // Call to action button
+              if (adData.callToAction != null)
+                _buildCallToActionButton(adData, style, isSmallScreen),
+            ],
           ),
         );
       },

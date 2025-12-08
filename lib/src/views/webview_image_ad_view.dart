@@ -2,7 +2,9 @@ import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
+import 'package:flutter/scheduler.dart';
 
 /// WebView-based Image Ad View Widget
 /// Renders image ads using WebView without native code dependencies
@@ -28,15 +30,19 @@ class WebViewImageAdView extends StatefulWidget {
   /// Position change callback
   final Function(AdPosition)? onPositionChanged;
 
+  /// Optional border radius for the ad view
+  final double? borderRadius;
+
   const WebViewImageAdView({
     super.key,
     required this.placementId,
     this.callback,
     this.width = 320,
     this.height = 240,
-    this.adType = AdType.image,
+    this.adType = AdType.banner,
     this.position = AdPosition.unknown,
     this.onPositionChanged,
+    this.borderRadius,
   });
 
   @override
@@ -63,6 +69,18 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: (NavigationRequest request) {
+            // Allow initial load of data: URLs and about:blank
+            if (request.url.startsWith('data:') ||
+                request.url == 'about:blank') {
+              return NavigationDecision.navigate;
+            }
+
+            // Open all other URLs in external browser
+            _openInExternalBrowser(request.url);
+            widget.callback?.onAdClicked(widget.placementId);
+            return NavigationDecision.prevent;
+          },
           onPageFinished: (String url) {
             setState(() {
               _isLoading = false;
@@ -85,17 +103,59 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       );
   }
 
+  Future<void> _openInExternalBrowser(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        SDKLogger.error('Could not launch URL: $url', null);
+      }
+    } catch (e) {
+      SDKLogger.error('Error launching URL: $url', e);
+    }
+  }
+
   Future<void> _loadAd() async {
-    widget.callback?.onAdLoading(widget.placementId);
+    // Avoid calling host callbacks synchronously during initState/build
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      widget.callback?.onAdLoading(widget.placementId);
+    });
 
     try {
       // Request the actual ad data from the API
       final adData = await _requestAd();
 
       if (adData != null && adData['adm'] != null) {
-        // Create HTML content with the actual ad data
-        final htmlContent = _createAdHTML(adData);
-        await _controller.loadHtmlString(htmlContent);
+        // If host app provided onAdRenderOverride, call it and skip loading the WebView
+        if (widget.callback?.onAdRenderOverride != null) {
+          SDKLogger.info(
+            'Calling onAdRenderOverride for placement ${widget.placementId} (WebView)',
+          );
+          try {
+            widget.callback?.onAdRenderOverride!(
+              widget.placementId,
+              adData['adm'] ?? '',
+              _currentPosition,
+            );
+            return; // Skip SDK rendering
+          } catch (e) {
+            SDKLogger.error('Error in onAdRenderOverride callback', e);
+          }
+
+          // Host app will render. Update UI state and lifecycle callbacks.
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+          widget.callback?.onAdLoaded(widget.placementId);
+          widget.callback?.onAdDisplayed(widget.placementId);
+        } else {
+          // Create HTML content with the actual ad data and load it
+          final htmlContent = _createAdHTML(adData);
+          await _controller.loadHtmlString(htmlContent);
+        }
       } else {
         // No ad available - show error placeholder
         throw Exception('Ad not loaded or placement ID does not exist');
@@ -180,61 +240,156 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
     final title = adData['title'] as String? ?? 'Advertisement';
     final description = adData['description'] as String? ?? '';
 
+    // Extract HTML from document.write() if present
+    String cleanedAdm = adm;
+    if (adm.contains('document.write(')) {
+      cleanedAdm = _extractFromDocumentWrite(adm);
+      SDKLogger.info('Cleaned HTML: $cleanedAdm');
+    }
+
     // Check if adm contains HTML content (has HTML tags)
-    final hasHtmlTags = adm.contains('<') && adm.contains('>');
-    final hasDoctype = adm.toLowerCase().contains('<!doctype');
+    final hasHtmlTags = cleanedAdm.contains('<') && cleanedAdm.contains('>');
+    final hasDoctype = cleanedAdm.toLowerCase().contains('<!doctype');
 
     if (hasHtmlTags && !hasDoctype) {
-      // adm contains HTML without DOCTYPE, wrap it in a basic HTML structure
-      return '''
+      // adm contains HTML without DOCTYPE, wrap it properly
+      return _wrapHtml(cleanedAdm);
+    } else if (hasDoctype) {
+      // adm already contains full HTML with DOCTYPE, use it directly
+      return cleanedAdm;
+    } else {
+      // adm is just an image URL or plain text, create full HTML structure
+      return _createImageAdHTML(cleanedAdm, title, description, clickUrl);
+    }
+  }
+
+  /// Extract HTML content from document.write() statement
+  String _extractFromDocumentWrite(String adm) {
+    try {
+      String content = adm.trim();
+
+      // Pattern 1: document.write(<html content>); - unquoted HTML
+      // This is what the ad server returns
+      if (content.startsWith('document.write(') && content.endsWith(');')) {
+        content = content.substring(
+          'document.write('.length,
+          content.length - 2,
+        );
+        content = content.trim();
+
+        // Unescape the content
+        content = _unescapeHtml(content);
+
+        // Remove the URL text node from span if present
+        content = _cleanupAdContent(content);
+
+        SDKLogger.info('Extracted HTML from document.write (unquoted)');
+        return content;
+      }
+
+      // Pattern 2: document.write("quoted html") or document.write('quoted html')
+      final writeRegex = RegExp(
+        r'document\.write\s*\(\s*['
+        "\"'"
+        r'](.+?)['
+        "\"'"
+        r']\s*\)\s*;?\s*$',
+        dotAll: true,
+      );
+      final match = writeRegex.firstMatch(content);
+
+      if (match != null) {
+        content = match.group(1) ?? content;
+        content = _unescapeHtml(content);
+        content = _cleanupAdContent(content);
+
+        SDKLogger.info('Extracted HTML from document.write (quoted)');
+        return content;
+      }
+
+      SDKLogger.info('No document.write pattern found, returning original');
+      return adm;
+    } catch (e) {
+      SDKLogger.error('Error extracting from document.write', e);
+      return adm;
+    }
+  }
+
+  /// Unescape HTML entities and special characters
+  String _unescapeHtml(String content) {
+    return content
+        .replaceAll(r'\"', '"')
+        .replaceAll(r"\'", "'")
+        .replaceAll(r'\/', '/')
+        .replaceAll(r'\\n', '\n')
+        .replaceAll(r'\\t', '\t')
+        .replaceAll(r'\\', '\\');
+  }
+
+  /// Clean up ad content by removing URL text nodes from span elements
+  String _cleanupAdContent(String content) {
+    // Pattern: <span id="banner_xxx">https://url...\<script>
+    // We need to remove the URL text and the backslash before <script>
+    final urlBeforeScriptRegex = RegExp(
+      r'(<span[^>]*>)(https?://[^\s<>"\\]+)(\\+)(<script)',
+      caseSensitive: false,
+    );
+
+    content = content.replaceAllMapped(urlBeforeScriptRegex, (match) {
+      // Keep the opening span tag and the script tag, remove URL and backslashes
+      return '${match.group(1)}${match.group(4)}';
+    });
+
+    return content;
+  }
+
+  /// Wrap HTML content in a proper HTML structure
+  String _wrapHtml(String htmlContent) {
+    return '''
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ad Display</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
+            overflow: hidden;
+            background: transparent;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
         }
-        .ad-wrapper {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            height: 100vh;
+        * {
+            box-sizing: border-box;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+        a {
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <div class="ad-wrapper">
-        $adm
-    </div>
-    <script>
-        // Handle clicks
-        document.addEventListener('click', function(e) {
-            if (e.target.tagName === 'A' && e.target.href) {
-                e.preventDefault();
-                window.open(e.target.href, '_blank');
-            }
-        });
-    </script>
+    $htmlContent
 </body>
 </html>
-      ''';
-    } else if (hasDoctype) {
-      // adm already contains full HTML with DOCTYPE, use it directly
-      return adm;
-    } else {
-      // adm is just an image URL or plain text, create full HTML structure
-      return '''
+''';
+  }
+
+  /// Create HTML for simple image ads
+  String _createImageAdHTML(
+    String imageUrl,
+    String title,
+    String description,
+    String clickUrl,
+  ) {
+    return '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -308,11 +463,11 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
 <body>
     <div class="ad-container">
         <div class="ad-label">Ad</div>
-        ${adm.isNotEmpty ? '<img src="$adm" alt="Advertisement" class="ad-image" />' : ''}
+        ${imageUrl.isNotEmpty ? '<img src="$imageUrl" alt="Advertisement" class="ad-image" />' : ''}
         <div class="ad-content">
             <h3 class="ad-title">$title</h3>
             ${description.isNotEmpty ? '<p class="ad-description">$description</p>' : ''}
-            ${clickUrl.isNotEmpty ? '<a href="$clickUrl" class="ad-cta" target="_blank">Learn More</a>' : ''}
+            ${clickUrl.isNotEmpty ? '<a href="$clickUrl" class="ad-cta">Learn More</a>' : ''}
         </div>
     </div>
     <script>
@@ -326,8 +481,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
     </script>
 </body>
 </html>
-      ''';
-    }
+''';
   }
 
   void _handleAdClick() {
@@ -343,7 +497,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       case AdPosition.unknown:
         return BidscubePositionStyle(
           backgroundColor: Colors.white,
-          borderRadius: 8.0,
+          borderRadius: widget.borderRadius ?? 8.0,
           border: Border.all(color: Colors.grey[300]!),
           boxShadow: [
             BoxShadow(
@@ -356,7 +510,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       case AdPosition.aboveTheFold:
         return BidscubePositionStyle(
           backgroundColor: Colors.blue[50]!,
-          borderRadius: 12.0,
+          borderRadius: widget.borderRadius ?? 12.0,
           border: Border.all(color: Colors.blue[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -369,7 +523,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       case AdPosition.belowTheFold:
         return BidscubePositionStyle(
           backgroundColor: Colors.green[50]!,
-          borderRadius: 10.0,
+          borderRadius: widget.borderRadius ?? 10.0,
           border: Border.all(color: Colors.green[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -382,7 +536,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       case AdPosition.header:
         return BidscubePositionStyle(
           backgroundColor: Colors.orange[50]!,
-          borderRadius: 6.0,
+          borderRadius: widget.borderRadius ?? 6.0,
           border: Border.all(color: Colors.orange[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -395,7 +549,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       case AdPosition.footer:
         return BidscubePositionStyle(
           backgroundColor: Colors.purple[50]!,
-          borderRadius: 6.0,
+          borderRadius: widget.borderRadius ?? 6.0,
           border: Border.all(color: Colors.purple[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -408,7 +562,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       case AdPosition.sidebar:
         return BidscubePositionStyle(
           backgroundColor: Colors.teal[50]!,
-          borderRadius: 8.0,
+          borderRadius: widget.borderRadius ?? 8.0,
           border: Border.all(color: Colors.teal[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -421,7 +575,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       case AdPosition.fullScreen:
         return BidscubePositionStyle(
           backgroundColor: Colors.red[50]!,
-          borderRadius: 16.0,
+          borderRadius: widget.borderRadius ?? 16.0,
           border: Border.all(color: Colors.red[200]!, width: 3),
           boxShadow: [
             BoxShadow(
@@ -434,7 +588,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       case AdPosition.dependOnTheScreenSize:
         return BidscubePositionStyle(
           backgroundColor: Colors.amber[50]!,
-          borderRadius: 10.0,
+          borderRadius: widget.borderRadius ?? 10.0,
           border: Border.all(color: Colors.amber[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -457,11 +611,11 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       decoration: BoxDecoration(
         color: positionStyle.backgroundColor,
         border: positionStyle.border,
-        borderRadius: BorderRadius.circular(positionStyle.borderRadius),
+        borderRadius: BorderRadius.circular(positionStyle.borderRadius ?? 0),
         boxShadow: positionStyle.boxShadow,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(positionStyle.borderRadius ?? 0),
         child: _isLoading
             ? const Center(
                 child: Column(

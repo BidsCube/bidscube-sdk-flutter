@@ -1,4 +1,4 @@
-package com.bidscube.sdk
+package com.bidscube.bidscube_sdk_flutter
 
 import android.content.Context
 import io.flutter.embedding.engine.plugins.FlutterPlugin

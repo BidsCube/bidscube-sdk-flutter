@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import '../core/logger.dart';
@@ -60,8 +62,8 @@ class URLBuilder {
       'name': packageInfo.appName,
       'app_store_url': _getAppStoreURL(packageInfo.packageName),
       'language': deviceInfo['language'] ?? 'en',
-      'deviceWidth': deviceInfo['deviceWidth'] ?? '375',
-      'deviceHeight': deviceInfo['deviceHeight'] ?? '812',
+      'deviceWidth': deviceInfo['deviceWidth'] ?? '1',
+      'deviceHeight': deviceInfo['deviceHeight'] ?? '1',
       'ua': deviceInfo['userAgent'] ?? 'Flutter',
       'ifa': deviceInfo['advertisingId'] ?? '',
       'dnt': deviceInfo['doNotTrack'] ?? '0',
@@ -69,7 +71,7 @@ class URLBuilder {
 
     // Add ad type specific parameters
     switch (adType) {
-      case AdType.image:
+      case AdType.banner:
         params['c'] = Constants.adTypeImage;
         params['m'] = Constants.methodApi;
         params['res'] = Constants.responseFormatJs;
@@ -87,11 +89,6 @@ class URLBuilder {
         params['c'] = Constants.adTypeNative;
         params['m'] = Constants.methodApi;
         params['res'] = Constants.responseFormatJson;
-        break;
-      case AdType.banner:
-        params['c'] = Constants.adTypeImage;
-        params['m'] = Constants.methodApi;
-        params['res'] = Constants.responseFormatJs;
         break;
     }
 
@@ -115,66 +112,77 @@ class URLBuilder {
       final deviceInfo = DeviceInfoPlugin();
       final packageInfo = await PackageInfo.fromPlatform();
 
+      // Get screen dimensions from platformDispatcher (physical pixels, not logical)
+      final view = WidgetsBinding.instance.platformDispatcher.views.first;
+      final physicalSize = view.physicalSize;
+      final screenWidth = physicalSize.width.toInt();
+      final screenHeight = physicalSize.height.toInt();
+
       String platform;
-      String deviceWidth;
-      String deviceHeight;
       String userAgent;
       String language;
 
       if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
         platform = 'Android';
-        deviceWidth = '375';
-        deviceHeight = '812';
-        userAgent = '${packageInfo.appName}/${packageInfo.version} (Flutter)';
-        // deviceWidth = androidInfo.displayMetrics.widthPx.toString();
-        // deviceHeight = androidInfo.displayMetrics.heightPx.toString();
-        // userAgent =
-        //     '${packageInfo.appName}/${packageInfo.version} (Android ${androidInfo.version.release}; ${androidInfo.model})';
-        language = 'en'; // Default language
+        userAgent =
+            '${packageInfo.appName}/${packageInfo.version} (Android ${androidInfo.version.release}; ${androidInfo.model})';
+        language = 'en';
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;
-        deviceWidth = '375';
-        deviceHeight = '812';
         platform = 'iOS';
-        // Get actual device dimensions for iOS
         userAgent =
             '${packageInfo.appName}/${packageInfo.version} (iOS ${iosInfo.systemVersion}; ${iosInfo.model})';
-        language = 'en'; // Default language
+        language = 'en';
       } else {
-        // Default values for other platforms
         platform = 'Flutter';
-        deviceWidth = '375';
-        deviceHeight = '812';
         userAgent = '${packageInfo.appName}/${packageInfo.version} (Flutter)';
         language = 'en';
       }
 
       final deviceInfoMap = {
         'platform': platform,
-        'deviceWidth': deviceWidth,
-        'deviceHeight': deviceHeight,
+        'deviceWidth': screenWidth.toString(),
+        'deviceHeight': screenHeight.toString(),
         'userAgent': userAgent,
         'language': language,
         'advertisingId': await _getAdvertisingId(),
         'doNotTrack': await _getDoNotTrackStatus(),
       };
 
-      SDKLogger.info(
-        'Device: ${deviceInfoMap['platform']} ${deviceInfoMap['deviceWidth']}x${deviceInfoMap['deviceHeight']}',
-      );
+      SDKLogger.info('Device: $deviceInfoMap');
 
       return deviceInfoMap;
     } catch (e) {
       SDKLogger.error('Failed to get device info', e);
-      return {
-        'platform': 'Flutter',
-        'deviceWidth': '375',
-        'deviceHeight': '812',
-        'userAgent': 'Flutter',
-        'language': 'en',
-        'advertisingId': '',
-        'doNotTrack': '0',
-      };
+      // Fallback to platformDispatcher screen size or defaults
+      try {
+        final view = WidgetsBinding.instance.platformDispatcher.views.first;
+        final physicalSize = view.physicalSize;
+        final _ = view.devicePixelRatio;
+        final screenWidth = (physicalSize.width).toInt();
+        final screenHeight = (physicalSize.height).toInt();
+
+        return {
+          'platform': 'Flutter',
+          'deviceWidth': screenWidth.toString(),
+          'deviceHeight': screenHeight.toString(),
+          'userAgent': 'Flutter',
+          'language': 'en',
+          'advertisingId': '',
+          'doNotTrack': '0',
+        };
+      } catch (_) {
+        return {
+          'platform': 'Flutter',
+          'deviceWidth': '375',
+          'deviceHeight': '812',
+          'userAgent': 'Flutter',
+          'language': 'en',
+          'advertisingId': '',
+          'doNotTrack': '0',
+        };
+      }
     }
   }
 
@@ -202,13 +210,63 @@ class URLBuilder {
   }
 
   /// Get do not track status
+  /// Returns '1' if DNT is enabled (user opted out of tracking), '0' if tracking is allowed
   static Future<String> _getDoNotTrackStatus() async {
     try {
-      // In a real implementation, you would check user preferences
-      // For now, return '0' (tracking allowed)
-      return '0';
+      final platform = MethodChannel('com.bidscube.mobile_app_ads/ads');
+
+      if (Platform.isAndroid) {
+        try {
+          // Call Android method to check advertising tracking status
+          final bool isTrackingEnabled =
+              await platform.invokeMethod<bool>(
+                'isAdvertisingTrackingEnabled',
+              ) ??
+              true;
+          final dntStatus = isTrackingEnabled
+              ? '0'
+              : '1'; // '0' = tracking allowed, '1' = tracking disabled
+          SDKLogger.info(
+            'DNT Status (Android): Advertising tracking ${isTrackingEnabled ? 'enabled' : 'disabled'} - DNT=$dntStatus',
+          );
+          return dntStatus;
+        } catch (e) {
+          SDKLogger.warning(
+            'Failed to get Android advertising tracking status: $e',
+          );
+          return '0'; // Default: tracking allowed
+        }
+      } else if (Platform.isIOS) {
+        try {
+          // Call iOS method to check ASIdentifierManager.isAdvertisingTrackingEnabled
+          final bool isTrackingEnabled =
+              await platform.invokeMethod<bool>(
+                'isAdvertisingTrackingEnabled',
+              ) ??
+              true;
+          final dntStatus = isTrackingEnabled
+              ? '0'
+              : '1'; // '0' = tracking allowed, '1' = tracking disabled
+          SDKLogger.info(
+            'DNT Status (iOS): Advertising tracking ${isTrackingEnabled ? 'enabled' : 'disabled'} - DNT=$dntStatus',
+          );
+          return dntStatus;
+        } catch (e) {
+          SDKLogger.warning(
+            'Failed to get iOS advertising tracking status: $e',
+          );
+          return '0'; // Default: tracking allowed
+        }
+      } else {
+        SDKLogger.info('DNT Status: Unknown platform - tracking allowed (0)');
+        return '0';
+      }
     } catch (e) {
-      return '0';
+      SDKLogger.error(
+        'Failed to get DNT status, defaulting to tracking allowed',
+        e,
+      );
+      return '0'; // Default: tracking allowed on error
     }
   }
 
@@ -411,14 +469,12 @@ class URLBuilder {
   /// Get ad type title for display
   static String _getAdTypeTitle(AdType adType) {
     switch (adType) {
-      case AdType.image:
-        return 'Image Ad';
+      case AdType.banner:
+        return 'Banner Ad';
       case AdType.video:
         return 'Video Ad';
       case AdType.native:
         return 'Native Ad';
-      case AdType.banner:
-        return 'Banner Ad';
     }
   }
 }

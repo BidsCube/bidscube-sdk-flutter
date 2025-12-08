@@ -1,6 +1,6 @@
 import 'logger.dart';
+import 'ad_position.dart';
 
-/// Ad callback interface for BidsCube SDK
 /// Ad callback interface for BidsCube SDK
 abstract class AdCallback {
   /// Called when ad starts loading
@@ -29,10 +29,13 @@ abstract class AdCallback {
 
   /// Called when video ad is skipped
   void onVideoAdSkipped(String placementId);
+
+  /// Called when ad render is overridden
+  void Function(String placementId, String adm, AdPosition position)?
+  onAdRenderOverride;
 }
 
 /// Default implementation of AdCallback
-/// Default implementation of [AdCallback].
 class DefaultAdCallback implements AdCallback {
   @override
   void onAdLoading(String placementId) {
@@ -80,4 +83,8 @@ class DefaultAdCallback implements AdCallback {
   void onVideoAdSkipped(String placementId) {
     SDKLogger.info('Video ad skipped: $placementId');
   }
+
+  @override
+  void Function(String placementId, String adm, AdPosition position)?
+  onAdRenderOverride;
 }

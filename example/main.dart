@@ -38,6 +38,10 @@ class HomeScreen extends StatelessWidget {
 /// Example implementation of AdCallback to handle ad events.
 class ExampleAdCallback implements AdCallback {
   @override
+  void Function(String placementId, String adm, AdPosition position)?
+  onAdRenderOverride;
+
+  @override
   void onAdLoading(String placementId) {
     debugPrint('Ad is loading: $placementId');
   }

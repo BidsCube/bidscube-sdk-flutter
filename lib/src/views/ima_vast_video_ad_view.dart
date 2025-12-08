@@ -30,8 +30,8 @@ class ImaVastVideoAdView extends StatefulWidget {
   /// Ad position
   final AdPosition position;
 
-  /// Position change callback
-  final Function(AdPosition)? onPositionChanged;
+  /// Optional border radius for the ad view
+  final double? borderRadius;
 
   const ImaVastVideoAdView({
     super.key,
@@ -42,7 +42,7 @@ class ImaVastVideoAdView extends StatefulWidget {
     this.baseUrl = Constants.baseURL,
     this.adType = AdType.video,
     this.position = AdPosition.unknown,
-    this.onPositionChanged,
+    this.borderRadius,
   });
 
   @override
@@ -198,13 +198,41 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
                   _currentPosition = serverPosition;
                 });
               }
-
-              // Notify parent widget about position change
-              widget.onPositionChanged?.call(serverPosition);
             }
 
             if (jsonResponse['adm'] != null) {
-              vastXml = jsonResponse['adm'] as String;
+              // Preserve adm and serialize if needed
+              final dynamic admValue = jsonResponse['adm'];
+              final String admString = admValue is String
+                  ? admValue
+                  : json.encode(admValue);
+
+              // If host app provided onAdRenderOverride, call it and skip SDK rendering
+              if (widget.callback?.onAdRenderOverride != null) {
+                SDKLogger.info(
+                  'Calling onAdRenderOverride for placement ${widget.placementId} (VAST)',
+                );
+                try {
+                  widget.callback?.onAdRenderOverride!(
+                    widget.placementId,
+                    admString,
+                    _currentPosition,
+                  );
+                  return; // Skip SDK rendering
+                } catch (e) {
+                  SDKLogger.error('Error in onAdRenderOverride callback', e);
+                }
+
+                // Host app will render the ad. Mark loading finished and notify lifecycle callbacks.
+                if (mounted) setState(() => _isLoading = false);
+                widget.callback?.onAdLoaded(widget.placementId);
+                widget.callback?.onAdDisplayed(widget.placementId);
+
+                // Do not proceed with internal IMA request; leave vastXml empty
+                vastXml = '';
+              } else {
+                vastXml = admString;
+              }
             } else {
               // Response is direct VAST XML
               vastXml = response.body;
@@ -226,7 +254,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         // The IMA SDK expects a URL that returns VAST XML, not the XML content itself
         // Add a small delay to ensure AdsLoader is ready
         await Future.delayed(const Duration(milliseconds: 500));
-        await _requestAds(_adDisplayContainer, vastXml);
+        // Only request ads when host did not provide an override
+        if (widget.callback?.onAdRenderOverride == null) {
+          await _requestAds(_adDisplayContainer, vastXml);
+        }
       } else {
         throw Exception('No VAST XML received from server');
       }
@@ -301,7 +332,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       case AdPosition.unknown:
         return BidscubePositionStyle(
           backgroundColor: Colors.white,
-          borderRadius: 8.0,
+          borderRadius: widget.borderRadius ?? 0.0,
           border: Border.all(color: Colors.grey[300]!),
           boxShadow: [
             BoxShadow(
@@ -314,7 +345,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       case AdPosition.aboveTheFold:
         return BidscubePositionStyle(
           backgroundColor: Colors.blue[50]!,
-          borderRadius: 12.0,
+          borderRadius: widget.borderRadius ?? 0.0,
           border: Border.all(color: Colors.blue[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -327,7 +358,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       case AdPosition.belowTheFold:
         return BidscubePositionStyle(
           backgroundColor: Colors.green[50]!,
-          borderRadius: 10.0,
+          borderRadius: widget.borderRadius ?? 0.0,
           border: Border.all(color: Colors.green[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -340,7 +371,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       case AdPosition.header:
         return BidscubePositionStyle(
           backgroundColor: Colors.orange[50]!,
-          borderRadius: 6.0,
+          borderRadius: widget.borderRadius ?? 0.0,
           border: Border.all(color: Colors.orange[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -353,7 +384,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       case AdPosition.footer:
         return BidscubePositionStyle(
           backgroundColor: Colors.purple[50]!,
-          borderRadius: 6.0,
+          borderRadius: widget.borderRadius ?? 0.0,
           border: Border.all(color: Colors.purple[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -366,7 +397,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       case AdPosition.sidebar:
         return BidscubePositionStyle(
           backgroundColor: Colors.teal[50]!,
-          borderRadius: 8.0,
+          borderRadius: widget.borderRadius ?? 0.0,
           border: Border.all(color: Colors.teal[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -379,7 +410,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       case AdPosition.fullScreen:
         return BidscubePositionStyle(
           backgroundColor: Colors.red[50]!,
-          borderRadius: 16.0,
+          borderRadius: widget.borderRadius ?? 0.0,
           border: Border.all(color: Colors.red[200]!, width: 3),
           boxShadow: [
             BoxShadow(
@@ -392,7 +423,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       case AdPosition.dependOnTheScreenSize:
         return BidscubePositionStyle(
           backgroundColor: Colors.amber[50]!,
-          borderRadius: 10.0,
+          borderRadius: widget.borderRadius ?? 0.0,
           border: Border.all(color: Colors.amber[200]!, width: 2),
           boxShadow: [
             BoxShadow(
@@ -407,6 +438,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
 
   @override
   Widget build(BuildContext context) {
+    // If host provided an override callback, do not render SDK UI here
+    if (widget.callback?.onAdRenderOverride != null) {
+      return SizedBox(width: widget.width, height: widget.height);
+    }
     final positionStyle = _getPositionBasedStyle();
 
     if (_isLoading) {
@@ -415,7 +450,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         height: widget.height,
         decoration: BoxDecoration(
           color: positionStyle.backgroundColor,
-          borderRadius: BorderRadius.circular(positionStyle.borderRadius),
+          borderRadius: BorderRadius.circular(positionStyle.borderRadius ?? 0),
           border: positionStyle.border,
           boxShadow: positionStyle.boxShadow,
         ),
@@ -429,7 +464,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         height: widget.height,
         decoration: BoxDecoration(
           color: positionStyle.backgroundColor,
-          borderRadius: BorderRadius.circular(positionStyle.borderRadius),
+          borderRadius: BorderRadius.circular(positionStyle.borderRadius ?? 0),
           border: positionStyle.border,
           boxShadow: positionStyle.boxShadow,
         ),
@@ -458,10 +493,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       height: widget.height,
       decoration: BoxDecoration(
         color: Colors.black,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(widget.borderRadius ?? 0.0),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(widget.borderRadius ?? 0.0),
         child: Stack(
           children: <Widget>[
             // The display container must be on screen before any Ads can be loaded
