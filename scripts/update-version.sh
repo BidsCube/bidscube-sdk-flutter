@@ -100,6 +100,32 @@ _replace_with_awk "lib/src/core/constants.dart" '
 { if($0 ~ /^[[:space:]]*static[[:space:]]+const[[:space:]]+String[[:space:]]+sdkVersion[[:space:]]*=.*/){ sub(/\=.*/, "= \"" base "\";"); print } else if($0 ~ /^[[:space:]]*static[[:space:]]+const[[:space:]]+String[[:space:]]+webViewUserAgent[[:space:]]*=.*/){ sub(/\=.*/, "= \"BidscubeSDK-Flutter/" base "\";"); print } else print }
 '
 
+# 5) Prepend changelog entry: put new version heading + single bullet 'Bug fixed for input version' at the top of CHANGELOG.md
+CHANGELOG_FILE="CHANGELOG.md"
+ENTRY_DATE="$(date +%F)"
+ENTRY_TITLE="## ${VERSION_FULL} - ${ENTRY_DATE}"
+ENTRY_BODY="- Bug fixed: input version handling"
+
+# Build the entry block
+ENTRY_BLOCK="${ENTRY_TITLE}\n\n${ENTRY_BODY}\n\n"
+
+if [ -f "$CHANGELOG_FILE" ]; then
+  # Prepend safely: write entry to tmp then append existing content
+  tmpfile=$(mktemp)
+  printf "%b" "$ENTRY_BLOCK" > "$tmpfile"
+  cat "$CHANGELOG_FILE" >> "$tmpfile"
+  mv "$tmpfile" "$CHANGELOG_FILE"
+  echo "Prepended changelog entry to $CHANGELOG_FILE"
+else
+  # Create a new changelog with the entry
+  cat > "$CHANGELOG_FILE" <<CLF
+# Changelog
+
+$ENTRY_BLOCK
+CLF
+  echo "Created $CHANGELOG_FILE with initial entry"
+fi
+
 # done
 cat <<EOF
 Summary:

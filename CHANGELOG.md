@@ -1,3 +1,8 @@
+## 1.2.1
+
+* Version updated for pub.dev compliance
+* Fixed bugs
+
 ## 1.2.0
 
 * Fix for Android build
