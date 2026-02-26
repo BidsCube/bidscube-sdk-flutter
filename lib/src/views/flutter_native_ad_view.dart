@@ -77,6 +77,9 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
 
         // Native ad loaded successfully
         SDKLogger.info('Native ad loaded: ${_adData!.title}');
+        SDKLogger.info(
+          '[IMP_TRACK] placement=${widget.placementId} trackers=${_adData?.impressionTrackers?.length ?? 0}',
+        );
 
         // Track impressions
         _trackImpressions();
@@ -109,7 +112,10 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
         throw Exception('Failed to build API URL');
       }
 
-      final response = await http.get(Uri.parse(apiURL));
+      final response = await http.get(
+        Uri.parse(apiURL),
+        headers: await _requestHeaders(),
+      );
 
       SDKLogger.info('Native ad request: ${response.statusCode}');
 
@@ -232,22 +238,54 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
     }
   }
 
-  void _trackImpressions() {
-    if (_adData?.impressionTrackers != null) {
-      for (final tracker in _adData!.impressionTrackers!) {
-        // In a real implementation, you would make HTTP requests to track impressions
-        SDKLogger.info('Tracking impression: $tracker');
-        // Example: http.get(Uri.parse(tracker));
+  Future<void> _trackImpressions() async {
+    final trackers = _adData?.impressionTrackers;
+    if (trackers == null || trackers.isEmpty) {
+      SDKLogger.warning(
+        '[IMP_TRACK] placement=${widget.placementId} no impression trackers to send',
+      );
+      return;
+    }
+
+    for (var i = 0; i < trackers.length; i++) {
+      final tracker = trackers[i];
+      try {
+        final uri = Uri.parse(tracker);
+        SDKLogger.info(
+          '[IMP_TRACK] send placement=${widget.placementId} index=$i url=$tracker',
+        );
+        final response = await http.get(uri, headers: await _requestHeaders()).timeout(
+          const Duration(seconds: 10),
+        );
+        final bodyPreview = _short(response.body, 180);
+        SDKLogger.info(
+          '[IMP_TRACK] result placement=${widget.placementId} index=$i status=${response.statusCode} body="$bodyPreview"',
+        );
+      } catch (e, st) {
+        SDKLogger.error(
+          '[IMP_TRACK] failed placement=${widget.placementId} index=$i url=$tracker',
+          e,
+          st,
+        );
       }
     }
   }
 
-  void _trackClicks() {
+  Future<void> _trackClicks() async {
     if (_adData?.clickTrackers != null) {
       for (final tracker in _adData!.clickTrackers!) {
-        // In a real implementation, you would make HTTP requests to track clicks
-        SDKLogger.info('Tracking click: $tracker');
-        // Example: http.get(Uri.parse(tracker));
+        try {
+          final uri = Uri.parse(tracker);
+          final response = await http.get(
+            uri,
+            headers: await _requestHeaders(),
+          );
+          SDKLogger.info(
+            'Tracked click: $tracker (status: ${response.statusCode})',
+          );
+        } catch (e) {
+          SDKLogger.error('Failed to track click: $tracker', e);
+        }
       }
     }
   }
@@ -294,6 +332,15 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
     // Extract impression trackers
     if (native['imptrackers'] != null) {
       impressionTrackers = List<String>.from(native['imptrackers']);
+      SDKLogger.info(
+        '[IMP_TRACK] parsed placement=${widget.placementId} imptrackers=${impressionTrackers.length}',
+      );
+    } else {
+      final eventTrackers = native['eventtrackers'];
+      final eventTrackersCount = eventTrackers is List ? eventTrackers.length : 0;
+      SDKLogger.warning(
+        '[IMP_TRACK] parsed placement=${widget.placementId} imptrackers=0 eventtrackers=$eventTrackersCount',
+      );
     }
 
     return NativeAdData(
@@ -307,6 +354,18 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
           ? impressionTrackers
           : null,
     );
+  }
+
+  String _short(String value, int max) {
+    if (value.length <= max) {
+      return value;
+    }
+    return '${value.substring(0, max)}...';
+  }
+
+  Future<Map<String, String>> _requestHeaders() async {
+    final userAgent = await URLBuilder.buildBrowserUserAgent();
+    return {'User-Agent': userAgent, 'Accept': '*/*'};
   }
 
   @override

@@ -4,6 +4,7 @@ import bidscubeSdk
 
 public class BidscubeSdkPlugin: NSObject, FlutterPlugin {
     private var registrar: FlutterPluginRegistrar?
+    private var adDelegates: [String: FlutterAdDelegate] = [:]
     
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "bidscube_sdk", binaryMessenger: registrar.messenger())
@@ -93,6 +94,7 @@ public class BidscubeSdkPlugin: NSObject, FlutterPlugin {
             
             // Create ad delegate for callbacks
             let adDelegate = FlutterAdDelegate()
+            adDelegates["image_\(placementId)"] = adDelegate
             
             // Get image ad view from native SDK
             let imageAdView = BidscubeSDK.getImageAdView(placementId, adDelegate)
@@ -128,6 +130,7 @@ public class BidscubeSdkPlugin: NSObject, FlutterPlugin {
             
             // Create ad delegate for callbacks
             let adDelegate = FlutterAdDelegate()
+            adDelegates["video_\(placementId)"] = adDelegate
             
             // Get video ad view from native SDK
             let videoAdView = BidscubeSDK.getVideoAdView(placementId, adDelegate)
@@ -161,6 +164,7 @@ public class BidscubeSdkPlugin: NSObject, FlutterPlugin {
             
             // Create ad delegate for callbacks
             let adDelegate = FlutterAdDelegate()
+            adDelegates["native_\(placementId)"] = adDelegate
             
             // Get native ad view from native SDK
             let nativeAdView = BidscubeSDK.getNativeAdView(placementId, adDelegate)
@@ -205,8 +209,11 @@ public class BidscubeSdkPlugin: NSObject, FlutterPlugin {
 
     private func removeAdCallback(placementId: String?, result: @escaping FlutterResult) {
         do {
-            // TODO: Remove actual ad callback
-            // For now, just return success
+            if let placementId = placementId {
+                adDelegates.removeValue(forKey: "image_\(placementId)")
+                adDelegates.removeValue(forKey: "video_\(placementId)")
+                adDelegates.removeValue(forKey: "native_\(placementId)")
+            }
             result("Ad callback removed for placement: \(placementId ?? "unknown")")
         } catch {
             result(FlutterError(code: "REMOVE_CALLBACK_ERROR", message: "Failed to remove ad callback: \(error.localizedDescription)", details: nil))

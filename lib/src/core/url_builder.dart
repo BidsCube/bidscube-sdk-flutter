@@ -119,26 +119,21 @@ class URLBuilder {
       final screenHeight = physicalSize.height.toInt();
 
       String platform;
-      String userAgent;
       String language;
 
       if (Platform.isAndroid) {
         final androidInfo = await deviceInfo.androidInfo;
         platform = 'Android';
-        userAgent =
-            '${packageInfo.appName}/${packageInfo.version} (Android ${androidInfo.version.release}; ${androidInfo.model})';
         language = 'en';
       } else if (Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
+        await deviceInfo.iosInfo;
         platform = 'iOS';
-        userAgent =
-            '${packageInfo.appName}/${packageInfo.version} (iOS ${iosInfo.systemVersion}; ${iosInfo.model})';
         language = 'en';
       } else {
         platform = 'Flutter';
-        userAgent = '${packageInfo.appName}/${packageInfo.version} (Flutter)';
         language = 'en';
       }
+      final userAgent = await buildBrowserUserAgent();
 
       final deviceInfoMap = {
         'platform': platform,
@@ -167,7 +162,8 @@ class URLBuilder {
           'platform': 'Flutter',
           'deviceWidth': screenWidth.toString(),
           'deviceHeight': screenHeight.toString(),
-          'userAgent': 'Flutter',
+          'userAgent':
+              'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
           'language': 'en',
           'advertisingId': '',
           'doNotTrack': '0',
@@ -177,12 +173,34 @@ class URLBuilder {
           'platform': 'Flutter',
           'deviceWidth': '375',
           'deviceHeight': '812',
-          'userAgent': 'Flutter',
+          'userAgent':
+              'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
           'language': 'en',
           'advertisingId': '',
           'doNotTrack': '0',
         };
       }
+    }
+  }
+
+  /// Build browser-like user agent for HTTP headers and `ua` query field.
+  static Future<String> buildBrowserUserAgent() async {
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final info = await deviceInfo.androidInfo;
+        final version = info.version.release;
+        final model = info.model.replaceAll(';', ' ');
+        return 'Mozilla/5.0 (Linux; Android $version; $model) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
+      }
+      if (Platform.isIOS) {
+        final info = await deviceInfo.iosInfo;
+        final iosVersion = info.systemVersion.replaceAll('.', '_');
+        return 'Mozilla/5.0 (iPhone; CPU iPhone OS $iosVersion like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/$iosVersion Mobile/15E148 Safari/604.1';
+      }
+      return 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+    } catch (_) {
+      return 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
     }
   }
 

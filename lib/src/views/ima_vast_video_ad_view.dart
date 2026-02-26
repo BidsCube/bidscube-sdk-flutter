@@ -175,7 +175,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       }
 
       // Make direct HTTP request to the built URL
-      final response = await http.get(Uri.parse(apiURL));
+      final response = await http.get(
+        Uri.parse(apiURL),
+        headers: await _requestHeaders(),
+      );
 
       SDKLogger.info('VAST response: ${response.statusCode}');
 
@@ -291,6 +294,11 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         e.toString(),
       );
     }
+  }
+
+  Future<Map<String, String>> _requestHeaders() async {
+    final userAgent = await URLBuilder.buildBrowserUserAgent();
+    return {'User-Agent': userAgent, 'Accept': '*/*'};
   }
 
   Future<void> _resumeContent() async {

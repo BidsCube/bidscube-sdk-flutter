@@ -186,7 +186,10 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
         throw Exception('Failed to build API URL');
       }
 
-      final response = await http.get(Uri.parse(apiURL));
+      final response = await http.get(
+        Uri.parse(apiURL),
+        headers: await _requestHeaders(),
+      );
 
       if (response.statusCode == 200) {
         // Check if response is JSON
@@ -490,6 +493,11 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
       // Handle click URL opening
       _controller.loadRequest(Uri.parse(_adClickUrl!));
     }
+  }
+
+  Future<Map<String, String>> _requestHeaders() async {
+    final userAgent = await URLBuilder.buildBrowserUserAgent();
+    return {'User-Agent': userAgent, 'Accept': '*/*'};
   }
 
   BidscubePositionStyle _getPositionBasedStyle() {

@@ -49,9 +49,10 @@ class AdRequestClient {
       }
 
       final uri = Uri.parse(apiURL);
+      final userAgent = await URLBuilder.buildBrowserUserAgent();
       final requestHeaders = {
         'Content-Type': 'application/json',
-        'User-Agent': _getUserAgent(),
+        'User-Agent': userAgent,
         ..._defaultHeaders,
         ...additionalHeaders ?? {},
       };
@@ -100,9 +101,10 @@ class AdRequestClient {
       }
 
       final uri = Uri.parse(apiURL);
+      final userAgent = await URLBuilder.buildBrowserUserAgent();
       final requestHeaders = {
         'Content-Type': 'application/json',
-        'User-Agent': _getUserAgent(),
+        'User-Agent': userAgent,
         ..._defaultHeaders,
         ...additionalHeaders ?? {},
       };
@@ -151,9 +153,10 @@ class AdRequestClient {
       }
 
       final uri = Uri.parse(apiURL);
+      final userAgent = await URLBuilder.buildBrowserUserAgent();
       final requestHeaders = {
         'Content-Type': 'application/xml',
-        'User-Agent': _getUserAgent(),
+        'User-Agent': userAgent,
         ..._defaultHeaders,
         ...additionalHeaders ?? {},
       };
@@ -194,13 +197,6 @@ class AdRequestClient {
     } else {
       callback?.onAdLoaded(placementId);
     }
-  }
-
-  /// Get user agent string
-  String _getUserAgent() {
-    final prefix = Constants.userAgentPrefix;
-    final version = Constants.sdkVersion;
-    return '$prefix/$version (${Platform.operatingSystem})';
   }
 
   /// Get device information for ad targeting
