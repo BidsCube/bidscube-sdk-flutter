@@ -17,6 +17,12 @@ Prerequisites
 - If publishing iOS artifacts or building iOS example, macOS with Xcode and CocoaPods is required.
 - Git configured with push access to the repository.
 
+Git remotes (important)
+- **`origin`** — typically `https://github.com/...` (e.g. GitHub Desktop). HTTPS push from some terminals may require extra credential setup.
+- **`github-ssh`** — `git@github.com:BidsCube/bidscube-sdk-flutter.git`. **Use this remote for pushes and tags from the CLI** when SSH keys are configured: `git push github-ssh master` and `git push github-ssh vX.Y.Z`.
+- If `github-ssh` is missing locally, add it once:  
+  `git remote add github-ssh git@github.com:BidsCube/bidscube-sdk-flutter.git`
+
 Quick notes on which command to use
 - Use `flutter pub publish` for Flutter plugins/packages that contain platform code and examples.
 - `dart pub publish` works for pure Dart packages. For this plugin repo use `flutter pub publish`.
@@ -110,9 +116,11 @@ git commit -m "chore(release): bump version to x.y.z" # replace with the actual 
 # create annotated tag
 git tag -a vX.Y.Z -m "Release vX.Y.Z" # replace with actual version
 
-# push to remote
-git push origin HEAD
-git push origin vX.Y.Z
+# push commits and tag (use github-ssh from CLI, not origin, unless you prefer HTTPS)
+git push github-ssh HEAD
+git push github-ssh vX.Y.Z
+# If you moved an existing tag to a new commit:
+# git push github-ssh vX.Y.Z --force-with-lease
 ```
 
 7) Publish to pub.dev
