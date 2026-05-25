@@ -59,6 +59,10 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    # Required when pub.dev package admin enables "Require GitHub Actions environment".
+    # Name must match exactly what you set on pub.dev (Dart docs recommend `pub.dev`).
+    # Create it: GitHub repo → Settings → Environments → New environment → `pub.dev`
+    environment: pub.dev
     permissions:
       contents: read
       id-token: write
