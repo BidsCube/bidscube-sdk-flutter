@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -58,6 +60,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write
     outputs:
       result: ${{ steps.publish-result.outputs.result }}
@@ -107,6 +110,9 @@ jobs:
   create_release:
     needs: publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
     steps:
       - name: Create GitHub Release
         uses: actions/create-release@v1
