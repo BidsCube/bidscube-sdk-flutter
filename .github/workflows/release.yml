@@ -1,0 +1,92 @@
+name: Release (GitHub)
+
+# Releases are distributed via Git tags + GitHub Releases (no pub.dev).
+# Consumers add a git dependency pointing at this repo and `ref: <tag>`.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Dart SDK 3.10.3
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.10.3"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.4"
+          channel: "stable"
+
+      - name: Verify Flutter and Dart versions (debug)
+        run: |
+          echo "Flutter:"; flutter --version
+          echo "Dart:"; dart --version || true
+          if command -v jq >/dev/null 2>&1; then
+            flutter --version --machine | jq -r '.frameworkVersion as $fv | .dartSdkVersion as $dv | "Framework: "+$fv+"  Dart: "+$dv'
+          else
+            flutter --version --machine
+          fi
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Analyze code
+        run: flutter analyze --no-fatal-infos
+
+      - name: Verify package layout (dry-run; publish_to is none)
+        run: flutter pub publish --dry-run
+
+  github_release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## Install from Git (this repo is not published to pub.dev)
+
+            Pin the dependency to this tag:
+
+            ```yaml
+            dependencies:
+              bidscube_sdk_flutter:
+                git:
+                  url: https://github.com/bidscube/bidscube-sdk-flutter.git
+                  ref: ${{ github.ref_name }}
+            ```
+
+            Private fork or SSH: use a `url` you can clone from the same machine that runs `flutter pub get` (see [README — Installation](https://github.com/bidscube/bidscube-sdk-flutter#installation)).
+
+            ### Links
+
+            - [Repository](https://github.com/bidscube/bidscube-sdk-flutter)
+            - [CHANGELOG](https://github.com/bidscube/bidscube-sdk-flutter/blob/${{ github.ref_name }}/CHANGELOG.md)

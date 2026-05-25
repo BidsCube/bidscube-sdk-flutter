@@ -28,12 +28,18 @@ A comprehensive Flutter SDK for displaying image, video, and native ads across a
 
 ## Installation
 
-Add this to your package's `pubspec.yaml` file:
+This package is **released from GitHub** (tags + [Releases](https://github.com/bidscube/bidscube-sdk-flutter/releases)), not from pub.dev. Pin a version with a `git` dependency:
 
 ```yaml
 dependencies:
-  bidscube_sdk_flutter: ^1.2.0
+  bidscube_sdk_flutter:
+    git:
+      url: https://github.com/bidscube/bidscube-sdk-flutter.git
+      ref: v1.2.2 # use the tag you want
 ```
+
+- **Private clone URL / SSH**: set `url` to a form your CI and developers can clone (for example `git@github.com:bidscube/bidscube-sdk-flutter.git` with deploy keys or SSH agent).
+- **`ref`**: use a **tag** (recommended, e.g. `v1.2.2`) or a commit SHA for an exact snapshot.
 
 Then run:
 

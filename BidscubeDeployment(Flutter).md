@@ -1,6 +1,6 @@
 # Bidscube SDK — Deployment Guide for Flutter
 
-This document explains how to prepare, version, test, and publish the Bidscube Flutter plugin/package to pub.dev.
+This document explains how to prepare, version, test, and **release** the Bidscube Flutter plugin from **GitHub** (git tags + GitHub Releases). The package uses `publish_to: "none"` and is **not** published to pub.dev.
 
 Checklist (high level)
 - [ ] Update `pubspec.yaml` version and metadata
@@ -8,30 +8,41 @@ Checklist (high level)
 - [ ] Run static analysis, formatting, and tests
 - [ ] Build example app(s) for target platforms (Android / iOS as applicable)
 - [ ] Commit and tag the release in git
-- [ ] Publish to pub.dev (dry-run then real publish)
-- [ ] Create GitHub release and update docs
+- [ ] Push the tag — CI creates a **GitHub Release** (see `.github/workflows/release.yml`)
+- [ ] Tell consumers to bump the `git` dependency `ref:` to the new tag
 
 Prerequisites
 - Dart and Flutter SDK installed and on PATH. Use the same SDK versions the project supports.
-- An account on https://pub.dev with permission to publish this package (owner/publisher).
-- If publishing iOS artifacts or building iOS example, macOS with Xcode and CocoaPods is required.
+- If building iOS example, macOS with Xcode and CocoaPods is required.
 - Git configured with push access to the repository.
 
 Git remotes (important)
 - **`origin`** — typically `https://github.com/...` (e.g. GitHub Desktop). HTTPS push from some terminals may require extra credential setup.
-- **`github-ssh`** — `git@github.com:BidsCube/bidscube-sdk-flutter.git`. **Use this remote for pushes and tags from the CLI** when SSH keys are configured: `git push github-ssh master` and `git push github-ssh vX.Y.Z`.
+- **`github-ssh`** — `git@github.com:bidscube/bidscube-sdk-flutter.git`. **Use this remote for pushes and tags from the CLI** when SSH keys are configured: `git push github-ssh master` and `git push github-ssh vX.Y.Z`.
 - If `github-ssh` is missing locally, add it once:  
-  `git remote add github-ssh git@github.com:BidsCube/bidscube-sdk-flutter.git`
+  `git remote add github-ssh git@github.com:bidscube/bidscube-sdk-flutter.git`
 
-Quick notes on which command to use
-- Use `flutter pub publish` for Flutter plugins/packages that contain platform code and examples.
-- `dart pub publish` works for pure Dart packages. For this plugin repo use `flutter pub publish`.
+How consumers depend on this package
+- Add a **git** dependency with `ref:` set to a **tag** (recommended):
+
+```yaml
+dependencies:
+  bidscube_sdk_flutter:
+    git:
+      url: https://github.com/bidscube/bidscube-sdk-flutter.git
+      ref: v1.2.2
+```
+
+- For private mirrors or SSH-only access, change `url` to a clone URL that works on the machine running `flutter pub get`.
+
+Quick notes on commands
+- Use `flutter pub publish --dry-run` from the repo root to validate the package layout before tagging (publishing to pub.dev is disabled via `publish_to: none`).
 
 1) Update version and metadata
 - Open `pubspec.yaml`.
 - Bump the `version:` field. Follow pub version format: MAJOR.MINOR.PATCH+BUILD (build number is optional).
   - Example: `version: 1.2.3` -> `version: 1.2.4` if you're releasing a patch.
-- Update other metadata if needed (homepage, repository, authors, environment constraints).
+- Update other metadata if needed (homepage, repository, environment constraints).
 
 PowerShell example:
 
@@ -48,7 +59,7 @@ code pubspec.yaml
 - Include short, accurate notes about what's changed (bug fixes, features, breaking changes).
 
 3) Run preflight checks (static analysis, tests, formatting)
-- Run package get, analyze, and tests. Fix any issues before publishing.
+- Run package get, analyze, and tests. Fix any issues before tagging.
 
 PowerShell commands:
 
@@ -63,7 +74,7 @@ flutter analyze
 flutter test
 
 # optional: format codebase
-flutter format .
+dart format .
 ```
 
 4) Build example app(s)
@@ -90,15 +101,15 @@ cd ..
 
 If you cannot build iOS (not on macOS), at minimum run a code analysis and test; note that you should still ensure CI covers macOS/iOS builds.
 
-5) Dry-run publish (highly recommended)
-- Always run a dry-run first to catch pub-specific issues.
+5) Dry-run package layout (recommended)
+- Catches layout / pubspec issues without uploading anywhere.
 
 ```powershell
 # from repository root
 flutter pub publish --dry-run
 ```
 
-Fix any issues reported by the dry-run (missing assets, invalid YAML, missing authors, license, etc.).
+Fix any issues reported by the dry-run (missing assets, invalid YAML, license, etc.).
 
 6) Commit, tag, and push
 - Commit changes to `pubspec.yaml`, `CHANGELOG.md`, and any other updated files.
@@ -123,26 +134,16 @@ git push github-ssh vX.Y.Z
 # git push github-ssh vX.Y.Z --force-with-lease
 ```
 
-7) Publish to pub.dev
-- Publish from the repository root. You will be prompted to confirm.
+7) GitHub Release (automated)
+- Pushing a tag matching `v*` triggers `.github/workflows/release.yml`: tests/analyze/dry-run, then a **GitHub Release** for that tag.
+- Release notes include a copy-pastable `git` dependency snippet.
 
-```powershell
-flutter pub publish
-```
+8) Post-release tasks
+- Confirm the new release appears under **GitHub → Releases**.
+- Update any internal docs or apps to point `ref:` at the new tag.
 
-Notes:
-- If you're not logged in, `flutter pub publish` will prompt you to sign in to your Google account used on pub.dev.
-- If your package is managed under a pub.dev "publisher", make sure your account is an owner or member with publisher rights.
-
-8) Post-publish tasks
-- Create a GitHub release with the tag `vX.Y.Z` and paste release notes from `CHANGELOG.md`.
-- Update `README.md` or any docs that reference the version if needed.
-- Update the project's issue board or milestone to reflect the deployed version.
-- Verify the package page on https://pub.dev shows the new version and the metadata is correct.
-
-9) Rollback (rare)
-- If you must unpublish a release, note that pub.dev only allows unpublishing within a limited time window after publishing and has restrictions on packages with other dependents. Typically prefer publishing a new patch release that reverts the bad change.
-- See pub.dev unpublish policy: https://dart.dev/tools/pub/publishing
+9) Optional: publishing to pub.dev later
+- Remove or change `publish_to: "none"` in `pubspec.yaml`, configure [automated publishing](https://dart.dev/tools/pub/automated-publishing), add a separate workflow if desired. This is not part of the default flow for this repository.
 
 Preflight checklist (detailed)
 - [ ] pubspec version updated
@@ -151,28 +152,13 @@ Preflight checklist (detailed)
 - [ ] `flutter analyze` returns no new issues
 - [ ] Example app builds for Android
 - [ ] If applicable, example app builds for iOS (CI/macOS)
-- [ ] Dry-run publish succeeds
+- [ ] `flutter pub publish --dry-run` succeeds
 - [ ] Commit and push with annotated tag
 
 Troubleshooting
 - Invalid or missing files reported by dry-run: verify `pubspec.yaml` `assets:` and `publish_to:` settings.
-- Missing README or LICENSE: pub.dev requires a LICENSE file and a README is strongly recommended.
-- Authentication issues: run `flutter pub login` or visit pub.dev in a browser and sign in to ensure your account is active.
-- **CI: `Insufficient permissions` / `environment 'null'` when publishing from GitHub Actions:** On pub.dev → package **Admin** → **Automated publishing**, if **Require GitHub Actions environment** is enabled, the workflow job that runs `dart pub publish` must set `environment: <exact-name>` (Dart docs recommend the GitHub environment name **`pub.dev`**). Create that environment under the GitHub repo **Settings → Environments**, and use the same spelling on pub.dev and in `.github/workflows/publish.yml`. See [Automated publishing](https://dart.dev/tools/pub/automated-publishing#hardening-security-with-github-deployment-environments).
-
-Advanced / CI recommendations
-- Add a GitHub Action that runs `flutter analyze`, `flutter test`, and `flutter build` for the example on PRs and main branch.
-- Add a release workflow that can tag a release and optionally publish to pub.dev using an API token or by using the `dart pub token` workflow in CI. (Be careful with secret handling.)
+- **GitHub Release job fails with permissions:** ensure the workflow has `contents: write` on the release job (see `release.yml`). In org settings, allow `GITHUB_TOKEN` to create releases for this repo, or use a PAT stored as a secret and pass it to `softprops/action-gh-release` via the `token` input (advanced).
 
 References
-- Publishing packages: https://dart.dev/tools/pub/publishing
-- Automated publishing (GitHub Actions + environments): https://dart.dev/tools/pub/automated-publishing
-- Pub.dev publisher documentation: https://pub.dev/publishers
-
-
----
-
-If you'd like, I can also:
-- Update `CHANGELOG.md` with a templated release entry.
-- Create a GitHub Actions workflow that runs the preflight checks automatically.
-- Add a small `scripts/release.ps1` PowerShell helper to automate version bumping, tagging, and publish (interactive confirmation still recommended).
+- Publishing packages (if you ever use pub.dev): https://dart.dev/tools/pub/publishing
+- Automated publishing (GitHub + pub.dev): https://dart.dev/tools/pub/automated-publishing
