@@ -6,3 +6,9 @@ build
 *.iml
 ios/.build
 .DS_Store
+
+# Android / iOS machine-local and Flutter-generated (do not commit or publish)
+android/local.properties
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh

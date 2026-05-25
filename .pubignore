@@ -1,12 +1,10 @@
-# Ignore testapp folder from published package
-# This prevents the test application and its files from being included in the package
+# Extra excludes for `dart pub publish` / `flutter pub publish`
+# (primary source of truth remains .gitignore + clean git index)
 
-testapp/
+build/
+.dart_tool/
 
-# You can add more patterns to exclude other dev-only files if necessary
-# For example:
-# .github/
-# .idea/
-# build/
-# scripts/
-
+android/local.properties
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
