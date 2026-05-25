@@ -158,6 +158,7 @@ Troubleshooting
 - Invalid or missing files reported by dry-run: verify `pubspec.yaml` `assets:` and `publish_to:` settings.
 - Missing README or LICENSE: pub.dev requires a LICENSE file and a README is strongly recommended.
 - Authentication issues: run `flutter pub login` or visit pub.dev in a browser and sign in to ensure your account is active.
+- **CI: `Insufficient permissions` / `environment 'null'` when publishing from GitHub Actions:** On pub.dev → package **Admin** → **Automated publishing**, if **Require GitHub Actions environment** is enabled, the workflow job that runs `dart pub publish` must set `environment: <exact-name>` (Dart docs recommend the GitHub environment name **`pub.dev`**). Create that environment under the GitHub repo **Settings → Environments**, and use the same spelling on pub.dev and in `.github/workflows/publish.yml`. See [Automated publishing](https://dart.dev/tools/pub/automated-publishing#hardening-security-with-github-deployment-environments).
 
 Advanced / CI recommendations
 - Add a GitHub Action that runs `flutter analyze`, `flutter test`, and `flutter build` for the example on PRs and main branch.
@@ -165,6 +166,7 @@ Advanced / CI recommendations
 
 References
 - Publishing packages: https://dart.dev/tools/pub/publishing
+- Automated publishing (GitHub Actions + environments): https://dart.dev/tools/pub/automated-publishing
 - Pub.dev publisher documentation: https://pub.dev/publishers
 
 
