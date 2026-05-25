@@ -84,6 +84,42 @@ void main() {
       expect(() => callback.onVideoAdStarted(placementId), returnsNormally);
       expect(() => callback.onVideoAdCompleted(placementId), returnsNormally);
       expect(() => callback.onVideoAdSkipped(placementId), returnsNormally);
+      expect(() => callback.onUserRewarded(placementId), returnsNormally);
+    });
+
+    test('VideoAdFormat string serialization', () {
+      expect(VideoAdFormat.interstitial.value, 'interstitial');
+      expect(VideoAdFormat.rewarded.value, 'rewarded');
+      expect(VideoAdFormatExtension.fromValue(null), VideoAdFormat.interstitial);
+      expect(VideoAdFormatExtension.fromValue(''), VideoAdFormat.interstitial);
+      expect(VideoAdFormatExtension.fromValue('rewarded'), VideoAdFormat.rewarded);
+    });
+
+    test('BidscubeSDK exposes legacy getVideoAdView API', () {
+      expect(BidscubeSDK.getVideoAdView, isA<Function>());
+      expect(BidscubeSDK.getInterstitialVideoAdView, isA<Function>());
+      expect(BidscubeSDK.getRewardedVideoAdView, isA<Function>());
+    });
+
+    test('onAdRenderOverride receives placement before adm payload', () {
+      late String capturedPid;
+      late String capturedAdm;
+
+      final callback = DefaultAdCallback();
+      callback.onAdRenderOverride = (placementId, adm, position) {
+        capturedPid = placementId;
+        capturedAdm = adm;
+      };
+
+      final client = AdRequestClient(baseUrl: 'https://example.invalid');
+      client.onAdReceived(
+        {'adm': '<wrapper><VAST /></wrapper>', 'position': 3},
+        callback,
+        'placement-a',
+      );
+
+      expect(capturedPid, 'placement-a');
+      expect(capturedAdm, '<wrapper><VAST /></wrapper>');
     });
 
     test('SDK should not be initialized by default', () {

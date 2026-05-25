@@ -1,6 +1,6 @@
 name: bidscube_sdk_flutter
 description: "BidsCube Flutter SDK for displaying image, video, and native ads across all platforms."
-version: 1.2.1
+version: 1.2.2
 homepage: https://github.com/bidscube/bidscube-sdk-flutter
 
 environment:

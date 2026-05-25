@@ -2,36 +2,26 @@ import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:interactive_media_ads/interactive_media_ads.dart';
 import 'package:video_player/video_player.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
-/// IMA VAST Video Ad View Widget
-/// Uses Google's Interactive Media Ads SDK for proper VAST video ad handling
+/// Flutter-only VAST playback via Google's IMA package.
+///
+/// Reward is granted **only** on [VideoAdFormat.rewarded] + [AdEventType.complete].
 class ImaVastVideoAdView extends StatefulWidget {
-  /// Placement ID for the ad
   final String placementId;
-
-  /// Ad callback handler
   final AdCallback? callback;
-
-  /// Ad width
   final double width;
-
-  /// Ad height
   final double height;
-
-  /// Base URL for ad requests
   final String baseUrl;
-
-  /// Ad type
   final AdType adType;
-
-  /// Ad position
   final AdPosition position;
-
-  /// Optional border radius for the ad view
   final double? borderRadius;
+  /// Distinguishes interstitial-style vs rewarded completions.
+  final VideoAdFormat videoAdFormat;
 
   const ImaVastVideoAdView({
     super.key,
@@ -41,6 +31,7 @@ class ImaVastVideoAdView extends StatefulWidget {
     this.height = 240,
     this.baseUrl = Constants.baseURL,
     this.adType = AdType.video,
+    this.videoAdFormat = VideoAdFormat.interstitial,
     this.position = AdPosition.unknown,
     this.borderRadius,
   });
@@ -51,24 +42,30 @@ class ImaVastVideoAdView extends StatefulWidget {
 
 class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     with WidgetsBindingObserver {
-  // IMA SDK components
   late final AdDisplayContainer _adDisplayContainer;
   AdsLoader? _adsLoader;
   AdsManager? _adsManager;
 
-  // Content video player
   VideoPlayerController? _contentVideoController;
   bool _shouldShowContentVideo = false;
   Timer? _contentProgressTimer;
 
-  // State management
   bool _isLoading = true;
   bool _hasError = false;
   AdPosition _currentPosition = AdPosition.unknown;
 
-  // Content progress provider for mid-roll ads
   final ContentProgressProvider _contentProgressProvider =
       ContentProgressProvider();
+
+  // -------- Idempotent lifecycle flags --------
+  bool _hasLoaded = false;
+  bool _hasDisplayed = false;
+  bool _hasStarted = false;
+  bool _hasCompleted = false;
+  bool _hasSkipped = false;
+  bool _hasClosed = false;
+  bool _hasRewarded = false;
+  bool _hasFailedOrAbortedFlow = false;
 
   @override
   void initState() {
@@ -83,8 +80,73 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     WidgetsBinding.instance.removeObserver(this);
     _contentProgressTimer?.cancel();
     _contentVideoController?.dispose();
+
+    if (_hasStarted &&
+        !_hasCompleted &&
+        !_hasSkipped &&
+        !_hasFailedOrAbortedFlow) {
+      _notifySkipped();
+    }
+    if (!_hasClosed) {
+      _notifyClosed();
+    }
+
     _adsManager?.destroy();
     super.dispose();
+  }
+
+  bool get _isRewarded => widget.videoAdFormat == VideoAdFormat.rewarded;
+
+  void _notifyLoaded() {
+    if (_hasLoaded) return;
+    _hasLoaded = true;
+    widget.callback?.onAdLoaded(widget.placementId);
+  }
+
+  void _notifyDisplayed() {
+    if (_hasDisplayed) return;
+    _hasDisplayed = true;
+    widget.callback?.onAdDisplayed(widget.placementId);
+  }
+
+  void _notifyStarted() {
+    if (_hasStarted) return;
+    _hasStarted = true;
+    widget.callback?.onVideoAdStarted(widget.placementId);
+  }
+
+  void _notifyCompleted() {
+    if (_hasCompleted) return;
+    _hasCompleted = true;
+    widget.callback?.onVideoAdCompleted(widget.placementId);
+
+    if (_isRewarded) {
+      _notifyRewarded();
+    }
+  }
+
+  void _notifyRewarded() {
+    if (!_isRewarded || _hasRewarded || !_hasCompleted) return;
+    _hasRewarded = true;
+    widget.callback?.onUserRewarded(widget.placementId);
+  }
+
+  void _notifySkipped() {
+    if (_hasSkipped) return;
+    _hasSkipped = true;
+    widget.callback?.onVideoAdSkipped(widget.placementId);
+  }
+
+  void _notifyClosed() {
+    if (_hasClosed) return;
+    _hasClosed = true;
+    widget.callback?.onAdClosed(widget.placementId);
+  }
+
+  void _notifyFailed(String code, String message) {
+    if (_hasFailedOrAbortedFlow) return;
+    _hasFailedOrAbortedFlow = true;
+    widget.callback?.onAdFailed(widget.placementId, code, message);
   }
 
   void _initializeAdContainer() {
@@ -105,22 +167,35 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
 
                   switch (event.type) {
                     case AdEventType.loaded:
-                      widget.callback?.onAdLoaded(widget.placementId);
+                      _notifyLoaded();
                       manager.start();
-                      widget.callback?.onAdDisplayed(widget.placementId);
+                      break;
+                    case AdEventType.started:
+                      _notifyDisplayed();
+                      _notifyStarted();
+                      break;
+                    case AdEventType.complete:
+                      _notifyCompleted();
+                      break;
+                    case AdEventType.skipped:
+                      _notifySkipped();
+                      break;
+                    case AdEventType.allAdsCompleted:
+                      _adsManager?.destroy();
+                      _adsManager = null;
+                      _notifyClosed();
+                      break;
                     case AdEventType.contentPauseRequested:
                       _pauseContent();
+                      break;
                     case AdEventType.contentResumeRequested:
                       _resumeContent();
-                    case AdEventType.allAdsCompleted:
-                      manager.destroy();
-                      _adsManager = null;
-                      widget.callback?.onVideoAdCompleted(widget.placementId);
+                      break;
                     case AdEventType.clicked:
                       widget.callback?.onAdClicked(widget.placementId);
-                    case AdEventType.complete:
-                      widget.callback?.onVideoAdCompleted(widget.placementId);
-                    case _:
+                      break;
+                    default:
+                      break;
                   }
                 },
                 onAdErrorEvent: (AdErrorEvent event) {
@@ -128,8 +203,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
                     'IMA AdErrorEvent: ${event.error.message}',
                     null,
                   );
-                  widget.callback?.onAdFailed(
-                    widget.placementId,
+                  _notifyFailed(
                     'IMA_ERROR',
                     event.error.message ?? 'Unknown IMA error',
                   );
@@ -144,8 +218,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
           },
           onAdsLoadError: (AdsLoadErrorData data) {
             SDKLogger.error('IMA AdsLoadError: ${data.error.message}', null);
-            widget.callback?.onAdFailed(
-              widget.placementId,
+            _notifyFailed(
               'IMA_LOAD_ERROR',
               data.error.message ?? 'Unknown IMA load error',
             );
@@ -160,9 +233,6 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     widget.callback?.onAdLoading(widget.placementId);
     String vastXml = '';
     try {
-      SDKLogger.info('Loading VAST video ad: ${widget.placementId}');
-
-      // First, try to get VAST XML from the API using URLBuilder
       final apiURL = await URLBuilder.buildAdRequestURL(
         placementId: widget.placementId,
         adType: widget.adType,
@@ -174,90 +244,58 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         throw Exception('Failed to build API URL for VAST request');
       }
 
-      // Make direct HTTP request to the built URL
       final response = await http.get(
         Uri.parse(apiURL),
         headers: await _requestHeaders(),
       );
 
-      SDKLogger.info('VAST response: ${response.statusCode}');
-
       if (response.statusCode == 200 && response.body.isNotEmpty) {
-        // Check if response is JSON with adm parameter
         try {
           final jsonResponse = json.decode(response.body);
           if (jsonResponse is Map<String, dynamic>) {
-            // Extract position from server response if available
             if (jsonResponse['position'] != null) {
-              final positionValue = jsonResponse['position'] as int;
-              final serverPosition = AdPositionExtension.fromValue(
-                positionValue,
-              );
-              SDKLogger.info('Position: ${serverPosition.value}');
-
-              // Update current position and trigger re-render
+              final serverPosition =
+                  AdPositionExtension.fromValue(
+                    jsonResponse['position'] as int,
+                  );
               if (mounted) {
-                setState(() {
-                  _currentPosition = serverPosition;
-                });
+                setState(() => _currentPosition = serverPosition);
               }
             }
 
-            if (jsonResponse['adm'] != null) {
-              // Preserve adm and serialize if needed
+            if (jsonResponse['adm'] != null && widget.callback?.onAdRenderOverride != null) {
               final dynamic admValue = jsonResponse['adm'];
               final String admString = admValue is String
                   ? admValue
                   : json.encode(admValue);
 
-              // If host app provided onAdRenderOverride, call it and skip SDK rendering
-              if (widget.callback?.onAdRenderOverride != null) {
-                SDKLogger.info(
-                  'Calling onAdRenderOverride for placement ${widget.placementId} (VAST)',
-                );
-                try {
-                  widget.callback?.onAdRenderOverride!(
-                    widget.placementId,
-                    admString,
-                    _currentPosition,
-                  );
-                  return; // Skip SDK rendering
-                } catch (e) {
-                  SDKLogger.error('Error in onAdRenderOverride callback', e);
-                }
+              SDKLogger.info(
+                'Calling onAdRenderOverride for placement ${widget.placementId}',
+              );
 
-                // Host app will render the ad. Mark loading finished and notify lifecycle callbacks.
-                if (mounted) setState(() => _isLoading = false);
-                widget.callback?.onAdLoaded(widget.placementId);
-                widget.callback?.onAdDisplayed(widget.placementId);
+              widget.callback!.onAdRenderOverride!(
+                widget.placementId,
+                admString,
+                _currentPosition,
+              );
 
-                // Do not proceed with internal IMA request; leave vastXml empty
-                vastXml = '';
-              } else {
-                vastXml = admString;
-              }
+              return;
+            } else if (jsonResponse['adm'] != null) {
+              final dynamic admValue = jsonResponse['adm'];
+              vastXml = admValue is String ? admValue : json.encode(admValue);
             } else {
-              // Response is direct VAST XML
               vastXml = response.body;
             }
           } else {
-            // Response is direct VAST XML
             vastXml = response.body;
           }
-        } catch (e) {
-          // Response is not JSON, treat as direct VAST XML
+        } catch (_) {
           vastXml = response.body;
         }
 
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
 
-        // Request ads through IMA SDK using the original API URL
-        // The IMA SDK expects a URL that returns VAST XML, not the XML content itself
-        // Add a small delay to ensure AdsLoader is ready
         await Future.delayed(const Duration(milliseconds: 500));
-        // Only request ads when host did not provide an override
         if (widget.callback?.onAdRenderOverride == null) {
           await _requestAds(_adDisplayContainer, vastXml);
         }
@@ -270,11 +308,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         _hasError = true;
         _isLoading = false;
       });
-      widget.callback?.onAdFailed(
-        widget.placementId,
-        'LOAD_ERROR',
-        e.toString(),
-      );
+      _notifyFailed('LOAD_ERROR', e.toString());
     }
   }
 
@@ -288,11 +322,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       );
     } catch (e) {
       SDKLogger.error('Failed to request ads', e);
-      widget.callback?.onAdFailed(
-        widget.placementId,
-        'REQUEST_ERROR',
-        e.toString(),
-      );
+      _notifyFailed('REQUEST_ERROR', e.toString());
     }
   }
 
@@ -302,22 +332,19 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   }
 
   Future<void> _resumeContent() async {
-    setState(() {
-      _shouldShowContentVideo = true;
-    });
+    setState(() => _shouldShowContentVideo = true);
 
     if (_adsManager != null) {
       _contentProgressTimer = Timer.periodic(
         const Duration(milliseconds: 200),
-        (Timer timer) async {
-          if (_contentVideoController?.value.isInitialized == true) {
-            final Duration? progress = await _contentVideoController!.position;
-            if (progress != null) {
-              await _contentProgressProvider.setProgress(
-                progress: progress,
-                duration: _contentVideoController!.value.duration,
-              );
-            }
+        (_) async {
+          if (_contentVideoController?.value.isInitialized != true) return;
+          final progress = await _contentVideoController!.position;
+          if (progress != null) {
+            await _contentProgressProvider.setProgress(
+              progress: progress,
+              duration: _contentVideoController!.value.duration,
+            );
           }
         },
       );
@@ -327,9 +354,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   }
 
   Future<void> _pauseContent() {
-    setState(() {
-      _shouldShowContentVideo = false;
-    });
+    setState(() => _shouldShowContentVideo = false);
     _contentProgressTimer?.cancel();
     _contentProgressTimer = null;
     return _contentVideoController?.pause() ?? Future.value();
@@ -446,7 +471,6 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
 
   @override
   Widget build(BuildContext context) {
-    // If host provided an override callback, do not render SDK UI here
     if (widget.callback?.onAdRenderOverride != null) {
       return SizedBox(width: widget.width, height: widget.height);
     }
@@ -507,7 +531,6 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         borderRadius: BorderRadius.circular(widget.borderRadius ?? 0.0),
         child: Stack(
           children: <Widget>[
-            // The display container must be on screen before any Ads can be loaded
             _adDisplayContainer,
             if (_shouldShowContentVideo &&
                 _contentVideoController?.value.isInitialized == true)

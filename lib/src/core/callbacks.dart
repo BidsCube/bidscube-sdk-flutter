@@ -1,42 +1,51 @@
 import 'logger.dart';
 import 'ad_position.dart';
 
-/// Ad callback interface for BidsCube SDK
+/// Base ad callback with default no-op methods.
+/// Prefer **extending** this class (`extends AdCallback`) instead of implementing
+/// it, so new optional handlers do not break your app when the SDK evolves.
 abstract class AdCallback {
   /// Called when ad starts loading
-  void onAdLoading(String placementId);
+  void onAdLoading(String placementId) {}
 
   /// Called when ad is loaded successfully
-  void onAdLoaded(String placementId);
+  void onAdLoaded(String placementId) {}
 
   /// Called when ad is displayed
-  void onAdDisplayed(String placementId);
+  void onAdDisplayed(String placementId) {}
 
   /// Called when ad fails to load or display
-  void onAdFailed(String placementId, String errorCode, String errorMessage);
+  void onAdFailed(
+    String placementId,
+    String errorCode,
+    String errorMessage,
+  ) {}
 
   /// Called when ad is clicked
-  void onAdClicked(String placementId);
+  void onAdClicked(String placementId) {}
 
   /// Called when ad is closed
-  void onAdClosed(String placementId);
+  void onAdClosed(String placementId) {}
 
   /// Called when video ad starts playing
-  void onVideoAdStarted(String placementId);
+  void onVideoAdStarted(String placementId) {}
 
-  /// Called when video ad completes
-  void onVideoAdCompleted(String placementId);
+  /// Called when video ad completes successfully
+  void onVideoAdCompleted(String placementId) {}
 
-  /// Called when video ad is skipped
-  void onVideoAdSkipped(String placementId);
+  /// Called when video ad is skipped / abandoned before completion
+  void onVideoAdSkipped(String placementId) {}
 
-  /// Called when ad render is overridden
+  /// Called after a **rewarded** video is fully watched (never for interstitial).
+  void onUserRewarded(String placementId) {}
+
+  /// Host overrides rendering — leave null for default SDK widgets.
   void Function(String placementId, String adm, AdPosition position)?
-  onAdRenderOverride;
+      onAdRenderOverride;
 }
 
-/// Default implementation of AdCallback
-class DefaultAdCallback implements AdCallback {
+/// Default implementation — logs lifecycle to [SDKLogger].
+class DefaultAdCallback extends AdCallback {
   @override
   void onAdLoading(String placementId) {
     SDKLogger.info('Ad loading: $placementId');
@@ -85,6 +94,7 @@ class DefaultAdCallback implements AdCallback {
   }
 
   @override
-  void Function(String placementId, String adm, AdPosition position)?
-  onAdRenderOverride;
+  void onUserRewarded(String placementId) {
+    SDKLogger.info('User rewarded: $placementId');
+  }
 }

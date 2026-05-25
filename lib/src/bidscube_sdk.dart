@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'core/sdk_config.dart';
 import 'core/callbacks.dart';
-import 'core/ad_type.dart';
 import 'core/ad_position.dart';
+import 'core/ad_type.dart';
 import 'platform/bidscube_platform.dart';
 import 'platform/method_channel_bidscube.dart';
 import 'platform/flutter_only_bidscube.dart';
@@ -64,7 +64,7 @@ class BidscubeSDK {
     );
   }
 
-  /// Get Video Ad View
+  /// Historical API — identical to [getInterstitialVideoAdView] (non-reward).
   ///
   /// [placementId] - Unique placement identifier
   /// [callback] - Ad callback handler
@@ -76,7 +76,39 @@ class BidscubeSDK {
     double? borderRadius,
   }) async {
     _checkInitialized();
-    return await _platform.getVideoAdView(
+    return await _platform.getInterstitialVideoAdView(
+      placementId,
+      callback,
+      position,
+      borderRadius,
+    );
+  }
+
+  /// Interstitial (non-reward) video ad view — same semantics as legacy [getVideoAdView].
+  static Future<Widget> getInterstitialVideoAdView(
+    String placementId, {
+    AdCallback? callback,
+    AdPosition position = AdPosition.unknown,
+    double? borderRadius,
+  }) async {
+    _checkInitialized();
+    return await _platform.getInterstitialVideoAdView(
+      placementId,
+      callback,
+      position,
+      borderRadius,
+    );
+  }
+
+  /// Rewarded video ad view ([AdCallback.onUserRewarded] only after completion).
+  static Future<Widget> getRewardedVideoAdView(
+    String placementId, {
+    AdCallback? callback,
+    AdPosition position = AdPosition.unknown,
+    double? borderRadius,
+  }) async {
+    _checkInitialized();
+    return await _platform.getRewardedVideoAdView(
       placementId,
       callback,
       position,

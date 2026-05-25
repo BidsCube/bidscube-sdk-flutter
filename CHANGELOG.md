@@ -1,3 +1,14 @@
+## 1.2.2
+
+* Separate **Interstitial** vs **Rewarded** video: `BidscubeSDK.getInterstitialVideoAdView()`, `BidscubeSDK.getRewardedVideoAdView()`, `VideoAdFormat` enum; legacy `getVideoAdView()` remains an alias for interstitial.
+* New callback `AdCallback.onUserRewarded`; default no-op on other lifecycle methods where appropriate.
+* `MethodChannelBidscube`: single `MethodChannel` handler plus per-placement callback map; invokes `getInterstitialVideoAdView` / `getRewardedVideoAdView` with `videoAdFormat` in arguments.
+* **iOS**: `FlutterAdDelegate` forwards native `AdCallback` events to Dart via `invokeMethod`; supports rewarded & interstitial video entry points aligned with native `BidscubeSDK`.
+* **Android**: method-channel cases for interstitial/rewarded video and documented Dart callback names for future bridge.
+* Flutter-only **IMA** path (`ImaVastVideoAdView`): completion/reward/skipped semantics (no duplicate complete; reward only on natural complete for rewarded).
+* `requestVideoAd` tolerates JSON with `adm` or raw XML; fixed `onAdRenderOverride` argument order (`placementId`, `adm`, `position`).
+
+
 ## 1.2.1
 
 * Version updated for pub.dev compliance

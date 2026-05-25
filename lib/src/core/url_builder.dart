@@ -110,7 +110,6 @@ class URLBuilder {
   static Future<Map<String, String>> _getDeviceInfo() async {
     try {
       final deviceInfo = DeviceInfoPlugin();
-      final packageInfo = await PackageInfo.fromPlatform();
 
       // Get screen dimensions from platformDispatcher (physical pixels, not logical)
       final view = WidgetsBinding.instance.platformDispatcher.views.first;
@@ -122,7 +121,7 @@ class URLBuilder {
       String language;
 
       if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
+        await deviceInfo.androidInfo;
         platform = 'Android';
         language = 'en';
       } else if (Platform.isIOS) {

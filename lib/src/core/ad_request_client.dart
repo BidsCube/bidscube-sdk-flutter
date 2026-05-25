@@ -131,14 +131,13 @@ class AdRequestClient {
     }
   }
 
-  /// Request video ad (VAST)
+  /// Request video ad (JSON with `adm` or raw VAST/XML).
   Future<String?> requestVideoAd({
     required String placementId,
     Map<String, String>? additionalHeaders,
     AdCallback? callback,
   }) async {
     try {
-      // Notify caller that loading started
       callback?.onAdLoading(placementId);
       SDKLogger.info('Requesting video ad: $placementId');
 
@@ -155,7 +154,7 @@ class AdRequestClient {
       final uri = Uri.parse(apiURL);
       final userAgent = await URLBuilder.buildBrowserUserAgent();
       final requestHeaders = {
-        'Content-Type': 'application/xml',
+        'Accept': '*/*',
         'User-Agent': userAgent,
         ..._defaultHeaders,
         ...additionalHeaders ?? {},
@@ -167,15 +166,40 @@ class AdRequestClient {
 
       SDKLogger.info('Video ad response: ${response.statusCode}');
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        onAdReceived(data, callback, placementId);
-        return response.body;
-      } else {
+      if (response.statusCode != 200) {
         final msg = 'Failed to load video ad: ${response.statusCode}';
         callback?.onAdFailed(placementId, 'HTTP_${response.statusCode}', msg);
         throw AdRequestException(msg, response.statusCode);
       }
+
+      final trimmed = response.body.trimLeft();
+
+      Map<String, dynamic>? jsonEnvelope;
+      if (trimmed.startsWith('{')) {
+        try {
+          final decoded = json.decode(response.body);
+          if (decoded is Map<String, dynamic>) {
+            jsonEnvelope = decoded;
+          }
+        } catch (_) {
+          callback?.onAdLoaded(placementId);
+          return response.body;
+        }
+      }
+
+      if (jsonEnvelope != null) {
+        onAdReceived(jsonEnvelope, callback, placementId);
+        final adm = jsonEnvelope['adm'];
+        if (adm == null ||
+            (adm is String && adm.trim().isEmpty)) {
+          return response.body;
+        }
+        final admXml = adm is String ? adm : json.encode(adm);
+        return admXml.isEmpty ? response.body : admXml;
+      }
+
+      callback?.onAdLoaded(placementId);
+      return response.body;
     } catch (e) {
       SDKLogger.error('Video ad request failed', e);
       callback?.onAdFailed(placementId, 'REQUEST_ERROR', e.toString());
@@ -189,10 +213,16 @@ class AdRequestClient {
     String placementId,
   ) {
     if (callback?.onAdRenderOverride != null) {
+      final admDynamic = data['adm'];
+      final admStr = admDynamic is String
+          ? admDynamic
+          : (admDynamic != null ? json.encode(admDynamic) : '');
       callback?.onAdRenderOverride!(
-        data['adm'],
         placementId,
-        AdPositionExtension.fromValue(data['position'] ?? 0),
+        admStr,
+        AdPositionExtension.fromValue(
+          ((data['position'] as num?)?.toInt()) ?? 0,
+        ),
       );
     } else {
       callback?.onAdLoaded(placementId);

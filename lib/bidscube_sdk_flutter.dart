@@ -12,6 +12,7 @@ export 'src/core/sdk_config.dart';
 export 'src/core/callbacks.dart';
 export 'src/core/logger.dart';
 export 'src/core/position_style.dart';
+export 'src/core/video_ad_format.dart';
 
 // Ad Views
 export 'src/views/webview_image_ad_view.dart';

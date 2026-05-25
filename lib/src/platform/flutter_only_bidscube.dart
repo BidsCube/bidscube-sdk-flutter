@@ -12,6 +12,7 @@ import '../views/webview_image_ad_view.dart';
 import '../views/ima_vast_video_ad_view.dart';
 import '../views/flutter_native_ad_view.dart';
 import '../core/constants.dart';
+import '../core/video_ad_format.dart';
 
 /// Flutter-only implementation of BidsCube SDK
 /// Uses WebView, video_player, and custom widgets instead of native code
@@ -80,18 +81,65 @@ class FlutterOnlyBidscube extends BidscubePlatform {
     }
   }
 
+  Widget _videoWidget(
+    String placementId,
+    AdCallback? callback,
+    AdPosition position,
+    VideoAdFormat videoAdFormat, [
+    double? borderRadius,
+  ]) =>
+      ImaVastVideoAdView(
+        placementId: placementId,
+        callback: callback,
+        baseUrl: _adClient.baseUrl,
+        adType: AdType.video,
+        videoAdFormat: videoAdFormat,
+        position: position,
+        borderRadius: borderRadius,
+      );
+
   @override
-  Future<Widget> getVideoAdView(
+  Future<Widget> getInterstitialVideoAdView(
     String placementId,
     AdCallback? callback,
     AdPosition position, [
+    double? borderRadius,
+  ]) =>
+      _getVideoPlacement(
+        placementId,
+        callback,
+        position,
+        VideoAdFormat.interstitial,
+        borderRadius,
+      );
+
+  @override
+  Future<Widget> getRewardedVideoAdView(
+    String placementId,
+    AdCallback? callback,
+    AdPosition position, [
+    double? borderRadius,
+  ]) =>
+      _getVideoPlacement(
+        placementId,
+        callback,
+        position,
+        VideoAdFormat.rewarded,
+        borderRadius,
+      );
+
+  Future<Widget> _getVideoPlacement(
+    String placementId,
+    AdCallback? callback,
+    AdPosition position,
+    VideoAdFormat format, [
     double? borderRadius,
   ]) async {
     try {
       if (callback != null) {
         _callbacks[placementId] = callback;
         SDKLogger.info(
-          'Registered callback for placement: $placementId (video)',
+          'Registered callback for placement: $placementId (${format.value})',
         );
 
         if (callback.onAdRenderOverride != null) {
@@ -108,16 +156,15 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         }
       }
 
-      return ImaVastVideoAdView(
-        placementId: placementId,
-        callback: callback,
-        baseUrl: _adClient.baseUrl,
-        adType: AdType.video,
-        position: position,
-        borderRadius: borderRadius,
+      return _videoWidget(
+        placementId,
+        callback,
+        position,
+        format,
+        borderRadius,
       );
     } catch (e) {
-      SDKLogger.error('Failed to get video ad view', e);
+      SDKLogger.error('Failed to get ${format.value} video ad view', e);
       rethrow;
     }
   }
@@ -196,8 +243,6 @@ class FlutterOnlyBidscube extends BidscubePlatform {
           );
           break;
       }
-
-      callback?.onAdLoaded(placementId);
     } catch (e) {
       SDKLogger.error('Failed to request ad', e);
       callback?.onAdFailed(placementId, 'REQUEST_ERROR', e.toString());

@@ -17,8 +17,29 @@ abstract class BidscubePlatform {
     double? borderRadius,
   ]);
 
-  /// Get Video Ad View
+  /// Get Video Ad View — backward-compatible alias for [getInterstitialVideoAdView].
   Future<Widget> getVideoAdView(
+    String placementId,
+    AdCallback? callback,
+    AdPosition position, [
+    double? borderRadius,
+  ]) => getInterstitialVideoAdView(
+        placementId,
+        callback,
+        position,
+        borderRadius,
+      );
+
+  /// Flutter — interstitial (non-rewarded) full-screen inline video placement.
+  Future<Widget> getInterstitialVideoAdView(
+    String placementId,
+    AdCallback? callback,
+    AdPosition position, [
+    double? borderRadius,
+  ]);
+
+  /// Rewarded video placement (reward emitted only after full completion in Flutter-only stack).
+  Future<Widget> getRewardedVideoAdView(
     String placementId,
     AdCallback? callback,
     AdPosition position, [
