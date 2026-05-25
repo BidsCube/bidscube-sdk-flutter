@@ -18,9 +18,9 @@ Prerequisites
 
 Git remotes (important)
 - **`origin`** — typically `https://github.com/...` (e.g. GitHub Desktop). HTTPS push from some terminals may require extra credential setup.
-- **`github-ssh`** — `git@github.com:bidscube/bidscube-sdk-flutter.git`. **Use this remote for pushes and tags from the CLI** when SSH keys are configured: `git push github-ssh master` and `git push github-ssh vX.Y.Z`.
+- **`github-ssh`** — `git@github.com:BidsCube/bidscube-sdk-flutter.git`. **Use this remote for pushes and tags from the CLI** when SSH keys are configured: `git push github-ssh master` and `git push github-ssh vX.Y.Z`.
 - If `github-ssh` is missing locally, add it once:  
-  `git remote add github-ssh git@github.com:bidscube/bidscube-sdk-flutter.git`
+  `git remote add github-ssh git@github.com:BidsCube/bidscube-sdk-flutter.git`
 
 How consumers depend on this package
 - Add a **git** dependency with `ref:` set to a **tag** (recommended):
@@ -29,7 +29,7 @@ How consumers depend on this package
 dependencies:
   bidscube_sdk_flutter:
     git:
-      url: https://github.com/bidscube/bidscube-sdk-flutter.git
+      url: https://github.com/BidsCube/bidscube-sdk-flutter.git
       ref: v1.2.2
 ```
 
@@ -157,6 +157,7 @@ Preflight checklist (detailed)
 
 Troubleshooting
 - Invalid or missing files reported by dry-run: verify `pubspec.yaml` `assets:` and `publish_to:` settings.
+- Missing README or LICENSE: keep both files in the repo root.
 - **GitHub Release job fails with permissions:** ensure the workflow has `contents: write` on the release job (see `release.yml`). In org settings, allow `GITHUB_TOKEN` to create releases for this repo, or use a PAT stored as a secret and pass it to `softprops/action-gh-release` via the `token` input (advanced).
 
 References
