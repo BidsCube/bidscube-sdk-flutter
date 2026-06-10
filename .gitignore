@@ -6,9 +6,13 @@ build
 *.iml
 ios/.build
 .DS_Store
+.flutter-plugins-dependencies
 
 # Android / iOS machine-local and Flutter-generated (do not commit or publish)
 android/local.properties
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 ios/Flutter/ephemeral/
 ios/Flutter/Generated.xcconfig
 ios/Flutter/flutter_export_environment.sh
+ios/Runner/GeneratedPluginRegistrant.h
+ios/Runner/GeneratedPluginRegistrant.m
