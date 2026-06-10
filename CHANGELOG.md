@@ -1,3 +1,7 @@
+## 1.2.4
+
+* Patch release; same VAST preview/end-card behavior as 1.2.3 (use tag `v1.2.4` for git dependency).
+
 ## 1.2.3
 
 * Flutter-only VAST: parse Companion preview, skip offset, and click-through from VAST; show designed end card when preview is present.
