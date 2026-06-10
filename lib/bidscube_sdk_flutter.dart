@@ -18,6 +18,7 @@ export 'src/core/video_ad_format.dart';
 export 'src/views/webview_image_ad_view.dart';
 export 'src/views/banner_ad_view.dart';
 export 'src/views/ima_vast_video_ad_view.dart';
+export 'src/views/video_end_card_view.dart';
 export 'src/views/flutter_native_ad_view.dart';
 
 // Platform Channels

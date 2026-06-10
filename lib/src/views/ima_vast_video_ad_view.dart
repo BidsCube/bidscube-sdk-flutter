@@ -2,11 +2,16 @@ import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:interactive_media_ads/interactive_media_ads.dart';
 import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+
+import 'package:pointer_interceptor/pointer_interceptor.dart';
+
+import 'video_ad_overlay_controls.dart';
 
 /// Flutter-only VAST playback via Google's IMA package.
 ///
@@ -22,6 +27,11 @@ class ImaVastVideoAdView extends StatefulWidget {
   final double? borderRadius;
   /// Distinguishes interstitial-style vs rewarded completions.
   final VideoAdFormat videoAdFormat;
+  /// When set, bypasses the ad server and feeds this XML directly to IMA.
+  /// Intended for QA / test mode only.
+  final String? vastXmlOverride;
+  /// Called when the user closes the interstitial (X button).
+  final VoidCallback? onDismiss;
 
   const ImaVastVideoAdView({
     super.key,
@@ -34,6 +44,8 @@ class ImaVastVideoAdView extends StatefulWidget {
     this.videoAdFormat = VideoAdFormat.interstitial,
     this.position = AdPosition.unknown,
     this.borderRadius,
+    this.vastXmlOverride,
+    this.onDismiss,
   });
 
   @override
@@ -57,6 +69,19 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   final ContentProgressProvider _contentProgressProvider =
       ContentProgressProvider();
 
+  // Parsed VAST metadata (preview is optional).
+  String? _previewImageUrl;
+  String? _endCardClickUrl;
+  String _adTitle = '';
+  int? _skipOffsetSeconds;
+
+  // End card + skip overlay state.
+  bool _showEndCard = false;
+  bool _skipAvailable = false;
+  int _skipCountdown = 0;
+  Timer? _skipCountdownTimer;
+  DateTime? _videoStartedAt;
+
   // -------- Idempotent lifecycle flags --------
   bool _hasLoaded = false;
   bool _hasDisplayed = false;
@@ -79,12 +104,15 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _contentProgressTimer?.cancel();
+    _skipCountdownTimer?.cancel();
     _contentVideoController?.dispose();
 
     if (_hasStarted &&
         !_hasCompleted &&
         !_hasSkipped &&
-        !_hasFailedOrAbortedFlow) {
+        !_hasFailedOrAbortedFlow &&
+        !_showEndCard &&
+        !_hasClosed) {
       _notifySkipped();
     }
     if (!_hasClosed) {
@@ -112,6 +140,8 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   void _notifyStarted() {
     if (_hasStarted) return;
     _hasStarted = true;
+    _videoStartedAt = DateTime.now();
+    _startSkipCountdown();
     widget.callback?.onVideoAdStarted(widget.placementId);
   }
 
@@ -149,6 +179,136 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     widget.callback?.onAdFailed(widget.placementId, code, message);
   }
 
+  void _parseVastMetadata(String vastXml) {
+    final parsed = VastParser.tryParse(vastXml);
+    if (parsed == null) {
+      return;
+    }
+
+    _adTitle = parsed.adTitle;
+    _previewImageUrl = parsed.previewImageUrl;
+    _endCardClickUrl = parsed.endCardClickUrl;
+    _skipOffsetSeconds = parsed.skipOffsetSeconds;
+  }
+
+  void _startSkipCountdown() {
+    _skipCountdownTimer?.cancel();
+    final offset = _skipOffsetSeconds;
+    if (offset == null || offset <= 0) {
+      return;
+    }
+
+    void tick() {
+      if (!mounted || _showEndCard) {
+        return;
+      }
+
+      final elapsed = _videoStartedAt == null
+          ? 0
+          : DateTime.now().difference(_videoStartedAt!).inSeconds;
+      final remaining = offset - elapsed;
+
+      setState(() {
+        if (remaining <= 0) {
+          _skipCountdown = 0;
+          _skipAvailable = true;
+        } else {
+          _skipCountdown = remaining;
+          _skipAvailable = false;
+        }
+      });
+    }
+
+    tick();
+    _skipCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _showEndCard) {
+        timer.cancel();
+        return;
+      }
+      tick();
+      if (_skipAvailable) {
+        timer.cancel();
+      }
+    });
+  }
+
+  void _stopSkipCountdown() {
+    _skipCountdownTimer?.cancel();
+    _skipCountdownTimer = null;
+  }
+
+  bool get _hasPreview {
+    final url = _previewImageUrl?.trim();
+    return url != null && url.isNotEmpty;
+  }
+
+  /// After video ends: show end card when preview exists, otherwise close.
+  void _finishVideoPlayback() {
+    if (!mounted || _showEndCard || _hasClosed) {
+      return;
+    }
+    _stopSkipCountdown();
+    if (_hasPreview) {
+      setState(() => _showEndCard = true);
+    } else {
+      _dismissAd();
+    }
+  }
+
+  Future<void> _handleEndCardClick() async {
+    widget.callback?.onAdClicked(widget.placementId);
+    final url = _endCardClickUrl;
+    if (url == null || url.isEmpty) {
+      return;
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  void _dismissAd() {
+    _stopSkipCountdown();
+    _adsManager?.destroy();
+    _adsManager = null;
+
+    if (_hasStarted && !_hasCompleted && !_hasSkipped && !_hasFailedOrAbortedFlow) {
+      _notifySkipped();
+    }
+
+    _notifyClosed();
+    widget.onDismiss?.call();
+  }
+
+  Future<void> _handleSkipTap() async {
+    if (!_skipAvailable) {
+      return;
+    }
+
+    _stopSkipCountdown();
+
+    try {
+      await _adsManager?.skip();
+    } catch (e) {
+      SDKLogger.error('IMA skip() failed, forcing skip flow', e);
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    if (!mounted || _hasSkipped || _showEndCard) {
+      return;
+    }
+
+    _forceSkip();
+  }
+
+  void _forceSkip() {
+    _notifySkipped();
+    _adsManager?.destroy();
+    _adsManager = null;
+    _finishVideoPlayback();
+  }
+
   void _initializeAdContainer() {
     _adDisplayContainer = AdDisplayContainer(
       onContainerAdded: (AdDisplayContainer container) {
@@ -176,14 +336,26 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
                       break;
                     case AdEventType.complete:
                       _notifyCompleted();
+                      _finishVideoPlayback();
                       break;
                     case AdEventType.skipped:
                       _notifySkipped();
+                      _finishVideoPlayback();
+                      break;
+                    case AdEventType.skippableStateChanged:
+                      if (mounted) {
+                        setState(() => _skipAvailable = true);
+                      }
                       break;
                     case AdEventType.allAdsCompleted:
                       _adsManager?.destroy();
                       _adsManager = null;
-                      _notifyClosed();
+                      if (!_showEndCard && !_hasClosed && _hasStarted) {
+                        _finishVideoPlayback();
+                      } else if (!_showEndCard && !_hasClosed) {
+                        _notifyClosed();
+                        widget.onDismiss?.call();
+                      }
                       break;
                     case AdEventType.contentPauseRequested:
                       _pauseContent();
@@ -213,7 +385,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
             );
 
             manager.init(
-              settings: AdsRenderingSettings(enablePreloading: true),
+              settings: AdsRenderingSettings(
+                enablePreloading: true,
+                uiElements: const <AdUIElement>{},
+              ),
             );
           },
           onAdsLoadError: (AdsLoadErrorData data) {
@@ -233,6 +408,18 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     widget.callback?.onAdLoading(widget.placementId);
     String vastXml = '';
     try {
+      final override = widget.vastXmlOverride?.trim();
+      if (override != null && override.isNotEmpty) {
+        vastXml = override;
+        _parseVastMetadata(vastXml);
+        setState(() => _isLoading = false);
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (widget.callback?.onAdRenderOverride == null) {
+          await _requestAds(_adDisplayContainer, vastXml);
+        }
+        return;
+      }
+
       final apiURL = await URLBuilder.buildAdRequestURL(
         placementId: widget.placementId,
         adType: widget.adType,
@@ -292,6 +479,8 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         } catch (_) {
           vastXml = response.body;
         }
+
+        _parseVastMetadata(vastXml);
 
         setState(() => _isLoading = false);
 
@@ -469,11 +658,56 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     }
   }
 
+  Widget _buildVideoControlsOverlay(BuildContext context) {
+    final topPadding = MediaQuery.paddingOf(context).top + 8;
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+
+    if (_skipOffsetSeconds == null || !_hasStarted) {
+      return const SizedBox.shrink();
+    }
+
+    return Stack(
+      children: [
+        // Hide the IMA native skip button (bottom-right inside platform view).
+        Positioned(
+          right: 0,
+          bottom: bottomPadding,
+          child: PointerInterceptor(
+            child: Container(
+              width: 132,
+              height: 52,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        VideoAdSkipButton(
+          isAvailable: _skipAvailable,
+          countdownSeconds: _skipCountdown,
+          onPressed: _handleSkipTap,
+          topPadding: topPadding,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.callback?.onAdRenderOverride != null) {
       return SizedBox(width: widget.width, height: widget.height);
     }
+
+    if (_showEndCard) {
+      return VideoEndCardView(
+        previewImageUrl: _previewImageUrl,
+        adTitle: _adTitle,
+        clickUrl: _endCardClickUrl,
+        width: widget.width,
+        height: widget.height,
+        onClose: _dismissAd,
+        onTap: _endCardClickUrl != null ? _handleEndCardClick : null,
+      );
+    }
+
     final positionStyle = _getPositionBasedStyle();
 
     if (_isLoading) {
@@ -530,11 +764,19 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       child: ClipRRect(
         borderRadius: BorderRadius.circular(widget.borderRadius ?? 0.0),
         child: Stack(
+          fit: StackFit.expand,
           children: <Widget>[
-            _adDisplayContainer,
+            Center(
+              child: SizedBox(
+                width: widget.width,
+                height: widget.height,
+                child: _adDisplayContainer,
+              ),
+            ),
             if (_shouldShowContentVideo &&
                 _contentVideoController?.value.isInitialized == true)
-              VideoPlayer(_contentVideoController!),
+              Center(child: VideoPlayer(_contentVideoController!)),
+            _buildVideoControlsOverlay(context),
           ],
         ),
       ),

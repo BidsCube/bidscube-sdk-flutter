@@ -1,3 +1,10 @@
+## 1.2.3
+
+* Flutter-only VAST: parse Companion preview, skip offset, and click-through from VAST; show designed end card when preview is present.
+* When VAST has no Companion preview, interstitial closes after complete/skip (no fallback end card).
+* Custom skip control (top-right), `onDismiss` callback, and `vastXmlOverride` for QA fixtures.
+* Added `pointer_interceptor` dependency for overlay controls above IMA platform views.
+
 ## 1.2.2
 
 * Separate **Interstitial** vs **Rewarded** video: `BidscubeSDK.getInterstitialVideoAdView()`, `BidscubeSDK.getRewardedVideoAdView()`, `VideoAdFormat` enum; legacy `getVideoAdView()` remains an alias for interstitial.

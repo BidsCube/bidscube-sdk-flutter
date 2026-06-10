@@ -1,50 +1,53 @@
 import 'package:xml/xml.dart';
 
-/// VAST (Video Ad Serving Template) parser for handling video ads
+/// VAST (Video Ad Serving Template) parser for handling video ads.
 class VastParser {
-  /// Parse VAST XML and extract video ad information
+  /// Parse VAST XML and extract video ad information.
   static Future<VastAd?> parseVast(String vastXml) async {
+    return tryParse(vastXml);
+  }
+
+  /// Parses VAST XML without throwing — returns null on failure.
+  static VastAd? tryParse(String vastXml) {
     try {
       final document = XmlDocument.parse(vastXml);
       final vastElement = document.rootElement;
 
       if (vastElement.name.local != 'VAST') {
-        throw Exception('Invalid VAST XML: Root element must be VAST');
+        return null;
       }
 
-      final adElement = vastElement.findElements('Ad').firstOrNull;
+      final adElement = vastElement.findAllElements('Ad').firstOrNull;
       if (adElement == null) {
-        throw Exception('No Ad element found in VAST XML');
+        return null;
       }
 
-      final inlineElement = adElement.findElements('InLine').firstOrNull;
+      final inlineElement = adElement.findAllElements('InLine').firstOrNull;
       if (inlineElement == null) {
-        throw Exception('No InLine element found in VAST XML');
+        return null;
       }
 
       return _parseInlineAd(inlineElement);
-    } catch (e) {
-      throw Exception('Failed to parse VAST XML: $e');
+    } catch (_) {
+      return null;
     }
   }
 
   static VastAd _parseInlineAd(XmlElement inlineElement) {
-    // Parse ad system
     final adSystem =
-        inlineElement.findElements('AdSystem').firstOrNull?.innerText ??
+        inlineElement.findAllElements('AdSystem').firstOrNull?.innerText ??
         'Unknown';
 
-    // Parse ad title
     final adTitle =
-        inlineElement.findElements('AdTitle').firstOrNull?.innerText ?? '';
+        inlineElement.findAllElements('AdTitle').firstOrNull?.innerText.trim() ??
+        '';
 
-    // Parse description
     final description =
-        inlineElement.findElements('Description').firstOrNull?.innerText ?? '';
+        inlineElement.findAllElements('Description').firstOrNull?.innerText ??
+        '';
 
-    // Parse creatives
     final creatives = <VastCreative>[];
-    final creativeElements = inlineElement.findElements('Creative');
+    final creativeElements = inlineElement.findAllElements('Creative');
 
     for (final creativeElement in creativeElements) {
       final creative = _parseCreative(creativeElement);
@@ -53,7 +56,6 @@ class VastParser {
       }
     }
 
-    // Parse tracking events
     final trackingEvents = <String, List<String>>{};
     for (final creative in creatives) {
       if (creative is VastLinearCreative) {
@@ -79,6 +81,13 @@ class VastParser {
       return _parseLinearCreative(linearElement);
     }
 
+    final companionAdsElement = creativeElement
+        .findElements('CompanionAds')
+        .firstOrNull;
+    if (companionAdsElement != null) {
+      return _parseCompanionCreative(companionAdsElement);
+    }
+
     final nonLinearElement = creativeElement
         .findElements('NonLinear')
         .firstOrNull;
@@ -89,19 +98,54 @@ class VastParser {
     return null;
   }
 
+  static VastCompanionCreative _parseCompanionCreative(
+    XmlElement companionAdsElement,
+  ) {
+    final companionElement =
+        companionAdsElement.findElements('Companion').firstOrNull;
+
+    String? staticResourceUrl;
+    String staticResourceType = '';
+    String? clickThroughUrl;
+
+    if (companionElement != null) {
+      final staticResourceElement = companionElement
+          .findElements('StaticResource')
+          .firstOrNull;
+      if (staticResourceElement != null) {
+        staticResourceUrl = staticResourceElement.innerText.trim();
+        staticResourceType =
+            staticResourceElement.getAttribute('creativeType') ?? '';
+      }
+
+      final clickThroughElement = companionElement
+          .findElements('CompanionClickThrough')
+          .firstOrNull;
+      if (clickThroughElement != null) {
+        clickThroughUrl = clickThroughElement.innerText.trim();
+      }
+    }
+
+    return VastCompanionCreative(
+      staticResourceUrl: staticResourceUrl,
+      staticResourceType: staticResourceType,
+      clickThroughUrl: clickThroughUrl,
+    );
+  }
+
   static VastLinearCreative _parseLinearCreative(XmlElement linearElement) {
-    // Parse duration
     final duration =
-        linearElement.findElements('Duration').firstOrNull?.innerText ??
+        linearElement.findAllElements('Duration').firstOrNull?.innerText ??
         '00:00:30';
 
-    // Parse media files
+    final skipOffsetRaw = linearElement.getAttribute('skipoffset');
+
     final mediaFiles = <VastMediaFile>[];
-    final mediaFileElements = linearElement.findElements('MediaFile');
+    final mediaFileElements = linearElement.findAllElements('MediaFile');
 
     for (final mediaFileElement in mediaFileElements) {
       final mediaFile = VastMediaFile(
-        url: mediaFileElement.innerText,
+        url: mediaFileElement.innerText.trim(),
         type: mediaFileElement.getAttribute('type') ?? '',
         width: int.tryParse(mediaFileElement.getAttribute('width') ?? '0') ?? 0,
         height:
@@ -111,26 +155,24 @@ class VastParser {
       mediaFiles.add(mediaFile);
     }
 
-    // Parse tracking events
     final trackingEvents = <VastTrackingEvent>[];
     final trackingElement = linearElement
-        .findElements('TrackingEvents')
+        .findAllElements('TrackingEvents')
         .firstOrNull;
     if (trackingElement != null) {
       final trackingEventElements = trackingElement.findElements('Tracking');
       for (final trackingEventElement in trackingEventElements) {
         final event = trackingEventElement.getAttribute('event') ?? '';
-        final url = trackingEventElement.innerText;
+        final url = trackingEventElement.innerText.trim();
         if (event.isNotEmpty && url.isNotEmpty) {
           trackingEvents.add(VastTrackingEvent(event: event, url: url));
         }
       }
     }
 
-    // Parse video clicks
     final videoClicks = <VastVideoClick>[];
     final videoClicksElement = linearElement
-        .findElements('VideoClicks')
+        .findAllElements('VideoClicks')
         .firstOrNull;
     if (videoClicksElement != null) {
       final clickThroughElement = videoClicksElement
@@ -140,7 +182,7 @@ class VastParser {
         videoClicks.add(
           VastVideoClick(
             type: 'ClickThrough',
-            url: clickThroughElement.innerText,
+            url: clickThroughElement.innerText.trim(),
           ),
         );
       }
@@ -152,7 +194,7 @@ class VastParser {
         videoClicks.add(
           VastVideoClick(
             type: 'ClickTracking',
-            url: clickTrackingElement.innerText,
+            url: clickTrackingElement.innerText.trim(),
           ),
         );
       }
@@ -163,13 +205,13 @@ class VastParser {
       mediaFiles: mediaFiles,
       trackingEvents: trackingEvents,
       videoClicks: videoClicks,
+      skipOffsetSeconds: parseSkipOffsetSeconds(skipOffsetRaw),
     );
   }
 
   static VastNonLinearCreative _parseNonLinearCreative(
     XmlElement nonLinearElement,
   ) {
-    // Parse non-linear ad resources
     final staticResources = <VastStaticResource>[];
     final staticResourceElements = nonLinearElement.findElements(
       'StaticResource',
@@ -177,13 +219,12 @@ class VastParser {
 
     for (final staticResourceElement in staticResourceElements) {
       final staticResource = VastStaticResource(
-        url: staticResourceElement.innerText,
+        url: staticResourceElement.innerText.trim(),
         creativeType: staticResourceElement.getAttribute('creativeType') ?? '',
       );
       staticResources.add(staticResource);
     }
 
-    // Parse tracking events for non-linear ads
     final trackingEvents = <VastTrackingEvent>[];
     final trackingElement = nonLinearElement
         .findElements('TrackingEvents')
@@ -192,7 +233,7 @@ class VastParser {
       final trackingEventElements = trackingElement.findElements('Tracking');
       for (final trackingEventElement in trackingEventElements) {
         final event = trackingEventElement.getAttribute('event') ?? '';
-        final url = trackingEventElement.innerText;
+        final url = trackingEventElement.innerText.trim();
         if (event.isNotEmpty && url.isNotEmpty) {
           trackingEvents.add(VastTrackingEvent(event: event, url: url));
         }
@@ -204,9 +245,35 @@ class VastParser {
       trackingEvents: trackingEvents,
     );
   }
+
+  /// Parses VAST skipoffset values such as `00:00:05` or `5`.
+  static int? parseSkipOffsetSeconds(String? raw) {
+    if (raw == null || raw.trim().isEmpty) {
+      return null;
+    }
+
+    final value = raw.trim();
+
+    if (value.contains(':')) {
+      final parts = value.split(':');
+      if (parts.length == 3) {
+        final hours = int.tryParse(parts[0]) ?? 0;
+        final minutes = int.tryParse(parts[1]) ?? 0;
+        final seconds = int.tryParse(parts[2]) ?? 0;
+        return hours * 3600 + minutes * 60 + seconds;
+      }
+    }
+
+    final percentMatch = RegExp(r'^(\d+)%$').firstMatch(value);
+    if (percentMatch != null) {
+      return null;
+    }
+
+    return int.tryParse(value);
+  }
 }
 
-/// VAST Ad data structure
+/// VAST Ad data structure.
 class VastAd {
   final String adSystem;
   final String adTitle;
@@ -221,27 +288,89 @@ class VastAd {
     required this.creatives,
     required this.trackingEvents,
   });
+
+  /// Preview image URL from the first Companion > StaticResource, if present.
+  String? get previewImageUrl {
+    for (final creative in creatives) {
+      if (creative is VastCompanionCreative) {
+        final url = creative.staticResourceUrl;
+        if (url != null && url.isNotEmpty) {
+          return url;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Click URL for the end card — CompanionClickThrough first, then Linear ClickThrough.
+  String? get endCardClickUrl {
+    for (final creative in creatives) {
+      if (creative is VastCompanionCreative) {
+        final url = creative.clickThroughUrl;
+        if (url != null && url.isNotEmpty) {
+          return url;
+        }
+      }
+    }
+
+    for (final creative in creatives) {
+      if (creative is VastLinearCreative) {
+        for (final click in creative.videoClicks) {
+          if (click.type == 'ClickThrough' && click.url.isNotEmpty) {
+            return click.url;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// Skip offset in seconds from Linear skipoffset attribute.
+  int? get skipOffsetSeconds {
+    for (final creative in creatives) {
+      if (creative is VastLinearCreative) {
+        return creative.skipOffsetSeconds;
+      }
+    }
+    return null;
+  }
 }
 
-/// Base class for VAST creatives
+/// Base class for VAST creatives.
 abstract class VastCreative {}
 
-/// Linear creative (video ads)
+/// Linear creative (video ads).
 class VastLinearCreative extends VastCreative {
   final String duration;
   final List<VastMediaFile> mediaFiles;
   final List<VastTrackingEvent> trackingEvents;
   final List<VastVideoClick> videoClicks;
+  final int? skipOffsetSeconds;
 
   VastLinearCreative({
     required this.duration,
     required this.mediaFiles,
     required this.trackingEvents,
     required this.videoClicks,
+    this.skipOffsetSeconds,
   });
 }
 
-/// Non-linear creative (banner/image ads)
+/// Companion creative (end-card preview image).
+class VastCompanionCreative extends VastCreative {
+  final String? staticResourceUrl;
+  final String staticResourceType;
+  final String? clickThroughUrl;
+
+  VastCompanionCreative({
+    this.staticResourceUrl,
+    this.staticResourceType = '',
+    this.clickThroughUrl,
+  });
+}
+
+/// Non-linear creative (banner/image ads).
 class VastNonLinearCreative extends VastCreative {
   final List<VastStaticResource> staticResources;
   final List<VastTrackingEvent> trackingEvents;
@@ -252,7 +381,7 @@ class VastNonLinearCreative extends VastCreative {
   });
 }
 
-/// Media file information
+/// Media file information.
 class VastMediaFile {
   final String url;
   final String type;
@@ -269,7 +398,7 @@ class VastMediaFile {
   });
 }
 
-/// Static resource information
+/// Static resource information.
 class VastStaticResource {
   final String url;
   final String creativeType;
@@ -277,7 +406,7 @@ class VastStaticResource {
   VastStaticResource({required this.url, required this.creativeType});
 }
 
-/// Tracking event information
+/// Tracking event information.
 class VastTrackingEvent {
   final String event;
   final String url;
@@ -285,7 +414,7 @@ class VastTrackingEvent {
   VastTrackingEvent({required this.event, required this.url});
 }
 
-/// Video click information
+/// Video click information.
 class VastVideoClick {
   final String type;
   final String url;

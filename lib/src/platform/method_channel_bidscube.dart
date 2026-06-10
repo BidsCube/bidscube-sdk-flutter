@@ -144,6 +144,8 @@ class MethodChannelBidscube extends BidscubePlatform {
     AdCallback? callback,
     AdPosition position, [
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   ]) async {
     try {
       final result = await _channel.invokeMethod('getInterstitialVideoAdView', {
@@ -167,6 +169,8 @@ class MethodChannelBidscube extends BidscubePlatform {
     AdCallback? callback,
     AdPosition position, [
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   ]) async {
     try {
       final result = await _channel.invokeMethod('getRewardedVideoAdView', {

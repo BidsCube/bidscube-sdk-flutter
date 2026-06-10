@@ -87,6 +87,8 @@ class FlutterOnlyBidscube extends BidscubePlatform {
     AdPosition position,
     VideoAdFormat videoAdFormat, [
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   ]) =>
       ImaVastVideoAdView(
         placementId: placementId,
@@ -96,6 +98,8 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         videoAdFormat: videoAdFormat,
         position: position,
         borderRadius: borderRadius,
+        vastXmlOverride: vastXmlOverride,
+        onDismiss: onDismiss,
       );
 
   @override
@@ -104,6 +108,8 @@ class FlutterOnlyBidscube extends BidscubePlatform {
     AdCallback? callback,
     AdPosition position, [
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   ]) =>
       _getVideoPlacement(
         placementId,
@@ -111,6 +117,8 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         position,
         VideoAdFormat.interstitial,
         borderRadius,
+        vastXmlOverride,
+        onDismiss,
       );
 
   @override
@@ -119,6 +127,8 @@ class FlutterOnlyBidscube extends BidscubePlatform {
     AdCallback? callback,
     AdPosition position, [
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   ]) =>
       _getVideoPlacement(
         placementId,
@@ -126,6 +136,8 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         position,
         VideoAdFormat.rewarded,
         borderRadius,
+        vastXmlOverride,
+        onDismiss,
       );
 
   Future<Widget> _getVideoPlacement(
@@ -134,6 +146,8 @@ class FlutterOnlyBidscube extends BidscubePlatform {
     AdPosition position,
     VideoAdFormat format, [
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   ]) async {
     try {
       if (callback != null) {
@@ -162,6 +176,8 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         position,
         format,
         borderRadius,
+        vastXmlOverride,
+        onDismiss,
       );
     } catch (e) {
       SDKLogger.error('Failed to get ${format.value} video ad view', e);

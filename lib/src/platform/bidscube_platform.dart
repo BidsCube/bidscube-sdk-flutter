@@ -36,6 +36,8 @@ abstract class BidscubePlatform {
     AdCallback? callback,
     AdPosition position, [
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   ]);
 
   /// Rewarded video placement (reward emitted only after full completion in Flutter-only stack).
@@ -44,6 +46,8 @@ abstract class BidscubePlatform {
     AdCallback? callback,
     AdPosition position, [
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   ]);
 
   /// Get Native Ad View

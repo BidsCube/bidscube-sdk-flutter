@@ -74,6 +74,8 @@ class BidscubeSDK {
     AdCallback? callback,
     AdPosition position = AdPosition.unknown,
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   }) async {
     _checkInitialized();
     return await _platform.getInterstitialVideoAdView(
@@ -81,6 +83,8 @@ class BidscubeSDK {
       callback,
       position,
       borderRadius,
+      vastXmlOverride,
+      onDismiss,
     );
   }
 
@@ -90,6 +94,8 @@ class BidscubeSDK {
     AdCallback? callback,
     AdPosition position = AdPosition.unknown,
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   }) async {
     _checkInitialized();
     return await _platform.getInterstitialVideoAdView(
@@ -97,6 +103,8 @@ class BidscubeSDK {
       callback,
       position,
       borderRadius,
+      vastXmlOverride,
+      onDismiss,
     );
   }
 
@@ -106,6 +114,8 @@ class BidscubeSDK {
     AdCallback? callback,
     AdPosition position = AdPosition.unknown,
     double? borderRadius,
+    String? vastXmlOverride,
+    VoidCallback? onDismiss,
   }) async {
     _checkInitialized();
     return await _platform.getRewardedVideoAdView(
@@ -113,6 +123,8 @@ class BidscubeSDK {
       callback,
       position,
       borderRadius,
+      vastXmlOverride,
+      onDismiss,
     );
   }
 
