@@ -36,7 +36,7 @@ dependencies:
   bidscube_sdk_flutter:
     git:
       url: https://github.com/bidscube/bidscube-sdk-flutter.git
-      ref: v1.3.0 # use the tag you want
+      ref: v1.2.3 # use the tag you want
 ```
 
 - **Private clone URL / SSH**: set `url` to a form your CI and developers can clone (for example `git@github.com:bidscube/bidscube-sdk-flutter.git` with deploy keys or SSH agent).
