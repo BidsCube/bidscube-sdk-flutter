@@ -6,6 +6,7 @@ A comprehensive Flutter SDK for displaying image, video, and native ads across a
 
 - **Multi-platform Support**: Android, iOS
 - **Image, Video, and Native ad support**
+- **OpenRTB 2.6-style podded video response parsing** (Flutter-only mode; response-side only)
 - **Multiple ad positions** (header, footer, sidebar, fullscreen, above/below the fold)
 - **Dynamic position-based styling** with visual feedback
 - **VAST video ad support** with IMA SDK integration
@@ -35,7 +36,7 @@ dependencies:
   bidscube_sdk_flutter:
     git:
       url: https://github.com/bidscube/bidscube-sdk-flutter.git
-      ref: v1.2.2 # use the tag you want
+      ref: v1.3.0 # use the tag you want
 ```
 
 - **Private clone URL / SSH**: set `url` to a form your CI and developers can clone (for example `git@github.com:bidscube/bidscube-sdk-flutter.git` with deploy keys or SSH agent).
@@ -67,6 +68,32 @@ final config = SDKConfig.builder()
 // Initialize the SDK
 await BidscubeSDK.initialize(config: config);
 ```
+
+### OpenRTB podded video responses
+
+The Flutter SDK supports OpenRTB 2.6-style podded video response parsing in Flutter-only mode.
+This is not a full OpenRTB bid-request client.
+The SDK still uses the existing legacy GET ad request flow.
+Supported response shapes: root adm, bids[], seatbid[].bid[], openrtb.video/openRtb.video/root video.
+Supported pod modes: structured, dynamic, hybrid.
+
+Configure pod parsing on [SDKConfig](lib/src/core/sdk_config.dart):
+
+```dart
+final config = SDKConfig.builder()
+    .openRtbPodMetadataEnabled(true)
+    .videoPodDurationValidationMode(OpenRtbPodDurationValidationMode.lenient)
+    .videoPodSkipPolicy(OpenRtbPodSkipPolicy.skipCurrentAndContinue)
+    .videoPodContinueOnSlotError(true)
+    .videoPodShowCounter(true)
+    .build();
+```
+
+**Platform notes**
+
+- **Flutter-only mode** resolves OpenRTB podded responses in Dart via `VideoAdPayloadResolver`.
+- **iOS native mode** forwards the OpenRTB pod config keys to the native `bidscubeSdk` pod (requires `bidscubeSdk` **1.2.5+** with `openRtbPodMetadataEnabled`, `videoPodDurationValidationMode`, `videoPodSkipPolicy`, etc.). Ensure `v1.2.5` is available to CocoaPods (trunk or your private spec repo) before using native iOS mode with OpenRTB config.
+- **Android native mode is not complete yet** because the current Flutter Android bridge still uses placeholders for native video, banner, and native ad views. OpenRTB pod parsing is available in **Flutter-only mode** only on Android until the real native bridge is implemented.
 
 ### 2. Create Ad Views
 

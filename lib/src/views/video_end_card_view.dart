@@ -34,7 +34,12 @@ class VideoEndCardView extends StatelessWidget {
       height: height,
       color: Colors.white,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, topPadding + 8, 16, bottomPadding + 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          topPadding + 8,
+          16,
+          bottomPadding + 16,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

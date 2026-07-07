@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'bidscube_sdk_flutter'
-  s.version          = "1.2.2"
+  s.version          = "1.3.0"
   s.summary          = 'BidsCube Flutter SDK for displaying image, video, and native ads across all platforms.'
   s.description      = <<-DESC
 BidsCube Flutter SDK for displaying image, video, and native ads across all platforms.
@@ -15,7 +15,7 @@ BidsCube Flutter SDK for displaying image, video, and native ads across all plat
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
-  s.dependency 'bidscubeSdk', '~> 0.2'
+  s.dependency 'bidscubeSdk', '~> 1.2.5'
   s.platform = :ios, '14.0'
 
   # Flutter.framework does not contain a i386 slice.

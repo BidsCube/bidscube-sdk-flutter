@@ -1,8 +1,5 @@
 /// Semantic video placement format passed to native / Flutter renderer.
-enum VideoAdFormat {
-  interstitial,
-  rewarded,
-}
+enum VideoAdFormat { interstitial, rewarded }
 
 extension VideoAdFormatExtension on VideoAdFormat {
   String get value {

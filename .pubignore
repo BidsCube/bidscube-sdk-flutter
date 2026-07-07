@@ -3,9 +3,12 @@
 
 build/
 .dart_tool/
+.DS_Store
+__MACOSX/
 .flutter-plugins-dependencies
 
 android/local.properties
+android/.gradle/
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 ios/Flutter/ephemeral/
 ios/Flutter/Generated.xcconfig

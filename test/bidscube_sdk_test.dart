@@ -90,9 +90,15 @@ void main() {
     test('VideoAdFormat string serialization', () {
       expect(VideoAdFormat.interstitial.value, 'interstitial');
       expect(VideoAdFormat.rewarded.value, 'rewarded');
-      expect(VideoAdFormatExtension.fromValue(null), VideoAdFormat.interstitial);
+      expect(
+        VideoAdFormatExtension.fromValue(null),
+        VideoAdFormat.interstitial,
+      );
       expect(VideoAdFormatExtension.fromValue(''), VideoAdFormat.interstitial);
-      expect(VideoAdFormatExtension.fromValue('rewarded'), VideoAdFormat.rewarded);
+      expect(
+        VideoAdFormatExtension.fromValue('rewarded'),
+        VideoAdFormat.rewarded,
+      );
     });
 
     test('BidscubeSDK exposes legacy getVideoAdView API', () {

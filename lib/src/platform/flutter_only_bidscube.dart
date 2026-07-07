@@ -18,11 +18,13 @@ import '../core/video_ad_format.dart';
 /// Uses WebView, video_player, and custom widgets instead of native code
 class FlutterOnlyBidscube extends BidscubePlatform {
   late AdRequestClient _adClient;
+  SDKConfig? _config;
   final Map<String, AdCallback> _callbacks = {};
 
   @override
   Future<void> initialize({required SDKConfig config}) async {
     try {
+      _config = config;
       _adClient = AdRequestClient(
         baseUrl: config.baseURL,
         timeout: Duration(milliseconds: config.defaultAdTimeout),
@@ -89,18 +91,17 @@ class FlutterOnlyBidscube extends BidscubePlatform {
     double? borderRadius,
     String? vastXmlOverride,
     VoidCallback? onDismiss,
-  ]) =>
-      ImaVastVideoAdView(
-        placementId: placementId,
-        callback: callback,
-        baseUrl: _adClient.baseUrl,
-        adType: AdType.video,
-        videoAdFormat: videoAdFormat,
-        position: position,
-        borderRadius: borderRadius,
-        vastXmlOverride: vastXmlOverride,
-        onDismiss: onDismiss,
-      );
+  ]) => ImaVastVideoAdView(
+    placementId: placementId,
+    callback: callback,
+    baseUrl: _adClient.baseUrl,
+    adType: AdType.video,
+    videoAdFormat: videoAdFormat,
+    position: position,
+    borderRadius: borderRadius,
+    vastXmlOverride: vastXmlOverride,
+    onDismiss: onDismiss,
+  );
 
   @override
   Future<Widget> getInterstitialVideoAdView(
@@ -110,16 +111,15 @@ class FlutterOnlyBidscube extends BidscubePlatform {
     double? borderRadius,
     String? vastXmlOverride,
     VoidCallback? onDismiss,
-  ]) =>
-      _getVideoPlacement(
-        placementId,
-        callback,
-        position,
-        VideoAdFormat.interstitial,
-        borderRadius,
-        vastXmlOverride,
-        onDismiss,
-      );
+  ]) => _getVideoPlacement(
+    placementId,
+    callback,
+    position,
+    VideoAdFormat.interstitial,
+    borderRadius,
+    vastXmlOverride,
+    onDismiss,
+  );
 
   @override
   Future<Widget> getRewardedVideoAdView(
@@ -129,16 +129,15 @@ class FlutterOnlyBidscube extends BidscubePlatform {
     double? borderRadius,
     String? vastXmlOverride,
     VoidCallback? onDismiss,
-  ]) =>
-      _getVideoPlacement(
-        placementId,
-        callback,
-        position,
-        VideoAdFormat.rewarded,
-        borderRadius,
-        vastXmlOverride,
-        onDismiss,
-      );
+  ]) => _getVideoPlacement(
+    placementId,
+    callback,
+    position,
+    VideoAdFormat.rewarded,
+    borderRadius,
+    vastXmlOverride,
+    onDismiss,
+  );
 
   Future<Widget> _getVideoPlacement(
     String placementId,
@@ -250,6 +249,7 @@ class FlutterOnlyBidscube extends BidscubePlatform {
           await _adClient.requestVideoAd(
             placementId: placementId,
             callback: callback,
+            config: _config,
           );
           break;
         case AdType.native:

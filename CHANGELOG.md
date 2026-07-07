@@ -1,3 +1,14 @@
+## 1.3.0
+
+* **OpenRTB 2.6-style podded video response parsing** (response-side only; legacy GET ad requests unchanged).
+* New `SDKConfig` pod options: `openRtbPodMetadataEnabled`, `videoPodDurationValidationMode`, `videoPodSkipPolicy`, `videoPodContinueOnSlotError`, `videoPodShowCounter`.
+* Dart OpenRTB layer: normalizer, playback plan builder, VAST pod composer, and `VideoAdPayloadResolver` integrated into `ImaVastVideoAdView` and `AdRequestClient`.
+* Supported response shapes: root `adm`, `bids[]`, `seatbid[].bid[]`, `openrtb.video` / `openRtb.video` / root `video`; pod modes: structured, dynamic, hybrid.
+* `AdRequestClient` now passes custom `baseURL` to all ad request methods.
+* iOS native bridge forwards OpenRTB pod config to `bidscubeSdk ~> 1.2.5`.
+* Android: restored core library desugaring (`minSdk` 24) for `interactive_media_ads`; native Android bridge remains placeholder (use Flutter-only mode for OpenRTB on Android).
+* CI/archive: ignore generated Flutter plugin registrant files and `.flutter-plugins-dependencies`.
+
 ## 1.2.4
 
 * Patch release; same VAST preview/end-card behavior as 1.2.3 (use tag `v1.2.4` for git dependency).

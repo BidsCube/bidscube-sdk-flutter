@@ -5,13 +5,13 @@ import 'package:video_player/video_player.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import 'video_ad_overlay_controls.dart';
+import '../openrtb/video_ad_payload_resolver.dart';
 
 /// Flutter-only VAST playback via Google's IMA package.
 ///
@@ -25,11 +25,14 @@ class ImaVastVideoAdView extends StatefulWidget {
   final AdType adType;
   final AdPosition position;
   final double? borderRadius;
+
   /// Distinguishes interstitial-style vs rewarded completions.
   final VideoAdFormat videoAdFormat;
+
   /// When set, bypasses the ad server and feeds this XML directly to IMA.
   /// Intended for QA / test mode only.
   final String? vastXmlOverride;
+
   /// Called when the user closes the interstitial (X button).
   final VoidCallback? onDismiss;
 
@@ -273,7 +276,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     _adsManager?.destroy();
     _adsManager = null;
 
-    if (_hasStarted && !_hasCompleted && !_hasSkipped && !_hasFailedOrAbortedFlow) {
+    if (_hasStarted &&
+        !_hasCompleted &&
+        !_hasSkipped &&
+        !_hasFailedOrAbortedFlow) {
       _notifySkipped();
     }
 
@@ -406,11 +412,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
 
   Future<void> _loadVastAd() async {
     widget.callback?.onAdLoading(widget.placementId);
-    String vastXml = '';
     try {
       final override = widget.vastXmlOverride?.trim();
       if (override != null && override.isNotEmpty) {
-        vastXml = override;
+        final vastXml = override;
         _parseVastMetadata(vastXml);
         setState(() => _isLoading = false);
         await Future.delayed(const Duration(milliseconds: 500));
@@ -437,57 +442,58 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       );
 
       if (response.statusCode == 200 && response.body.isNotEmpty) {
-        try {
-          final jsonResponse = json.decode(response.body);
-          if (jsonResponse is Map<String, dynamic>) {
-            if (jsonResponse['position'] != null) {
-              final serverPosition =
-                  AdPositionExtension.fromValue(
-                    jsonResponse['position'] as int,
-                  );
-              if (mounted) {
-                setState(() => _currentPosition = serverPosition);
-              }
-            }
+        final config = BidscubeSDK.config ?? SDKConfig(baseURL: widget.baseUrl);
+        final resolved = VideoAdPayloadResolver.resolve(
+          content: response.body,
+          config: config,
+        );
 
-            if (jsonResponse['adm'] != null && widget.callback?.onAdRenderOverride != null) {
-              final dynamic admValue = jsonResponse['adm'];
-              final String admString = admValue is String
-                  ? admValue
-                  : json.encode(admValue);
-
-              SDKLogger.info(
-                'Calling onAdRenderOverride for placement ${widget.placementId}',
-              );
-
-              widget.callback!.onAdRenderOverride!(
-                widget.placementId,
-                admString,
-                _currentPosition,
-              );
-
-              return;
-            } else if (jsonResponse['adm'] != null) {
-              final dynamic admValue = jsonResponse['adm'];
-              vastXml = admValue is String ? admValue : json.encode(admValue);
-            } else {
-              vastXml = response.body;
-            }
-          } else {
-            vastXml = response.body;
+        if (resolved != null) {
+          if (resolved.position != AdPosition.unknown && mounted) {
+            setState(() => _currentPosition = resolved.position);
           }
-        } catch (_) {
-          vastXml = response.body;
+
+          final overrideCallback = widget.callback?.onAdRenderOverride;
+          final admForOverride =
+              resolved.adsResponse ?? resolved.vastXml ?? resolved.adTagUrl;
+
+          if (overrideCallback != null &&
+              admForOverride != null &&
+              admForOverride.isNotEmpty) {
+            SDKLogger.info(
+              'Calling onAdRenderOverride for placement ${widget.placementId}',
+            );
+            overrideCallback(
+              widget.placementId,
+              admForOverride,
+              resolved.position != AdPosition.unknown
+                  ? resolved.position
+                  : _currentPosition,
+            );
+            return;
+          }
+
+          if (resolved.adTagUrl != null && resolved.adTagUrl!.isNotEmpty) {
+            setState(() => _isLoading = false);
+            await Future.delayed(const Duration(milliseconds: 500));
+            await _requestAdsByAdTagUrl(
+              _adDisplayContainer,
+              resolved.adTagUrl!,
+            );
+            return;
+          }
+
+          final inlineVast = resolved.adsResponse ?? resolved.vastXml;
+          if (inlineVast != null && inlineVast.isNotEmpty) {
+            _parseVastMetadata(inlineVast);
+            setState(() => _isLoading = false);
+            await Future.delayed(const Duration(milliseconds: 500));
+            await _requestAds(_adDisplayContainer, inlineVast);
+            return;
+          }
         }
 
-        _parseVastMetadata(vastXml);
-
-        setState(() => _isLoading = false);
-
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (widget.callback?.onAdRenderOverride == null) {
-          await _requestAds(_adDisplayContainer, vastXml);
-        }
+        throw Exception('No playable VAST payload received from server');
       } else {
         throw Exception('No VAST XML received from server');
       }
@@ -511,6 +517,23 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       );
     } catch (e) {
       SDKLogger.error('Failed to request ads', e);
+      _notifyFailed('REQUEST_ERROR', e.toString());
+    }
+  }
+
+  Future<void> _requestAdsByAdTagUrl(
+    AdDisplayContainer container,
+    String adTagUrl,
+  ) async {
+    try {
+      await _adsLoader?.requestAds(
+        AdsRequest(
+          adTagUrl: adTagUrl,
+          contentProgressProvider: _contentProgressProvider,
+        ),
+      );
+    } catch (e) {
+      SDKLogger.error('Failed to request ads by ad tag URL', e);
       _notifyFailed('REQUEST_ERROR', e.toString());
     }
   }
@@ -673,11 +696,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
           right: 0,
           bottom: bottomPadding,
           child: PointerInterceptor(
-            child: Container(
-              width: 132,
-              height: 52,
-              color: Colors.black,
-            ),
+            child: Container(width: 132, height: 52, color: Colors.black),
           ),
         ),
         VideoAdSkipButton(

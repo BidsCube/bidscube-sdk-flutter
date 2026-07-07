@@ -254,9 +254,9 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
         SDKLogger.info(
           '[IMP_TRACK] send placement=${widget.placementId} index=$i url=$tracker',
         );
-        final response = await http.get(uri, headers: await _requestHeaders()).timeout(
-          const Duration(seconds: 10),
-        );
+        final response = await http
+            .get(uri, headers: await _requestHeaders())
+            .timeout(const Duration(seconds: 10));
         final bodyPreview = _short(response.body, 180);
         SDKLogger.info(
           '[IMP_TRACK] result placement=${widget.placementId} index=$i status=${response.statusCode} body="$bodyPreview"',
@@ -337,7 +337,9 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
       );
     } else {
       final eventTrackers = native['eventtrackers'];
-      final eventTrackersCount = eventTrackers is List ? eventTrackers.length : 0;
+      final eventTrackersCount = eventTrackers is List
+          ? eventTrackers.length
+          : 0;
       SDKLogger.warning(
         '[IMP_TRACK] parsed placement=${widget.placementId} imptrackers=0 eventtrackers=$eventTrackersCount',
       );

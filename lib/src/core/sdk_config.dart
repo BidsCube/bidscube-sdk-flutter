@@ -1,5 +1,54 @@
 import 'ad_position.dart';
 
+/// Lenient vs strict validation for OpenRTB pod slot durations.
+enum OpenRtbPodDurationValidationMode { lenient, strict }
+
+/// Policy when a pod slot fails during playback.
+enum OpenRtbPodSkipPolicy { skipCurrentAndContinue, failEntirePod }
+
+extension OpenRtbPodDurationValidationModeExtension
+    on OpenRtbPodDurationValidationMode {
+  String toStableString() {
+    switch (this) {
+      case OpenRtbPodDurationValidationMode.lenient:
+        return 'lenient';
+      case OpenRtbPodDurationValidationMode.strict:
+        return 'strict';
+    }
+  }
+
+  static OpenRtbPodDurationValidationMode fromStableString(String? value) {
+    switch (value) {
+      case 'strict':
+        return OpenRtbPodDurationValidationMode.strict;
+      case 'lenient':
+      default:
+        return OpenRtbPodDurationValidationMode.lenient;
+    }
+  }
+}
+
+extension OpenRtbPodSkipPolicyExtension on OpenRtbPodSkipPolicy {
+  String toStableString() {
+    switch (this) {
+      case OpenRtbPodSkipPolicy.skipCurrentAndContinue:
+        return 'skipCurrentAndContinue';
+      case OpenRtbPodSkipPolicy.failEntirePod:
+        return 'failEntirePod';
+    }
+  }
+
+  static OpenRtbPodSkipPolicy fromStableString(String? value) {
+    switch (value) {
+      case 'failEntirePod':
+        return OpenRtbPodSkipPolicy.failEntirePod;
+      case 'skipCurrentAndContinue':
+      default:
+        return OpenRtbPodSkipPolicy.skipCurrentAndContinue;
+    }
+  }
+}
+
 /// SDK Configuration for BidsCube Flutter SDK
 class SDKConfig {
   /// Base URL for API requests
@@ -20,6 +69,21 @@ class SDKConfig {
   /// Enable test mode
   final bool enableTestMode;
 
+  /// Enable OpenRTB pod metadata parsing for video responses.
+  final bool openRtbPodMetadataEnabled;
+
+  /// Duration validation mode for OpenRTB video pods.
+  final OpenRtbPodDurationValidationMode videoPodDurationValidationMode;
+
+  /// Skip policy when a pod slot fails.
+  final OpenRtbPodSkipPolicy videoPodSkipPolicy;
+
+  /// Continue the pod when an individual slot errors.
+  final bool videoPodContinueOnSlotError;
+
+  /// Show pod slot counter UI in native pod playback (when supported).
+  final bool videoPodShowCounter;
+
   const SDKConfig({
     required this.baseURL,
     this.enableLogging = true,
@@ -27,6 +91,12 @@ class SDKConfig {
     this.defaultAdTimeout = 30000,
     this.defaultAdPosition = AdPosition.unknown,
     this.enableTestMode = false,
+    this.openRtbPodMetadataEnabled = true,
+    this.videoPodDurationValidationMode =
+        OpenRtbPodDurationValidationMode.lenient,
+    this.videoPodSkipPolicy = OpenRtbPodSkipPolicy.skipCurrentAndContinue,
+    this.videoPodContinueOnSlotError = true,
+    this.videoPodShowCounter = true,
   });
 
   /// Create SDKConfig from Map
@@ -41,6 +111,16 @@ class SDKConfig {
         orElse: () => AdPosition.unknown,
       ),
       enableTestMode: map['enableTestMode'] ?? false,
+      openRtbPodMetadataEnabled: map['openRtbPodMetadataEnabled'] ?? true,
+      videoPodDurationValidationMode:
+          OpenRtbPodDurationValidationModeExtension.fromStableString(
+            map['videoPodDurationValidationMode'] as String?,
+          ),
+      videoPodSkipPolicy: OpenRtbPodSkipPolicyExtension.fromStableString(
+        map['videoPodSkipPolicy'] as String?,
+      ),
+      videoPodContinueOnSlotError: map['videoPodContinueOnSlotError'] ?? true,
+      videoPodShowCounter: map['videoPodShowCounter'] ?? true,
     );
   }
 
@@ -53,6 +133,12 @@ class SDKConfig {
       'defaultAdTimeout': defaultAdTimeout,
       'defaultAdPosition': defaultAdPosition.value,
       'enableTestMode': enableTestMode,
+      'openRtbPodMetadataEnabled': openRtbPodMetadataEnabled,
+      'videoPodDurationValidationMode': videoPodDurationValidationMode
+          .toStableString(),
+      'videoPodSkipPolicy': videoPodSkipPolicy.toStableString(),
+      'videoPodContinueOnSlotError': videoPodContinueOnSlotError,
+      'videoPodShowCounter': videoPodShowCounter,
     };
   }
 
@@ -68,6 +154,13 @@ class SDKConfigBuilder {
   int _defaultAdTimeout = 30000;
   AdPosition _defaultAdPosition = AdPosition.unknown;
   bool _enableTestMode = false;
+  bool _openRtbPodMetadataEnabled = true;
+  OpenRtbPodDurationValidationMode _videoPodDurationValidationMode =
+      OpenRtbPodDurationValidationMode.lenient;
+  OpenRtbPodSkipPolicy _videoPodSkipPolicy =
+      OpenRtbPodSkipPolicy.skipCurrentAndContinue;
+  bool _videoPodContinueOnSlotError = true;
+  bool _videoPodShowCounter = true;
 
   /// Set base URL
   SDKConfigBuilder baseURL(String url) {
@@ -105,6 +198,33 @@ class SDKConfigBuilder {
     return this;
   }
 
+  SDKConfigBuilder openRtbPodMetadataEnabled(bool enabled) {
+    _openRtbPodMetadataEnabled = enabled;
+    return this;
+  }
+
+  SDKConfigBuilder videoPodDurationValidationMode(
+    OpenRtbPodDurationValidationMode mode,
+  ) {
+    _videoPodDurationValidationMode = mode;
+    return this;
+  }
+
+  SDKConfigBuilder videoPodSkipPolicy(OpenRtbPodSkipPolicy policy) {
+    _videoPodSkipPolicy = policy;
+    return this;
+  }
+
+  SDKConfigBuilder videoPodContinueOnSlotError(bool enabled) {
+    _videoPodContinueOnSlotError = enabled;
+    return this;
+  }
+
+  SDKConfigBuilder videoPodShowCounter(bool enabled) {
+    _videoPodShowCounter = enabled;
+    return this;
+  }
+
   /// Build SDKConfig
   SDKConfig build() {
     return SDKConfig(
@@ -114,6 +234,11 @@ class SDKConfigBuilder {
       defaultAdTimeout: _defaultAdTimeout,
       defaultAdPosition: _defaultAdPosition,
       enableTestMode: _enableTestMode,
+      openRtbPodMetadataEnabled: _openRtbPodMetadataEnabled,
+      videoPodDurationValidationMode: _videoPodDurationValidationMode,
+      videoPodSkipPolicy: _videoPodSkipPolicy,
+      videoPodContinueOnSlotError: _videoPodContinueOnSlotError,
+      videoPodShowCounter: _videoPodShowCounter,
     );
   }
 }

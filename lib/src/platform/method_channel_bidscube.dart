@@ -330,10 +330,7 @@ class MethodChannelBidscube extends BidscubePlatform {
     }
   }
 
-  Widget _createAdWidget(
-    dynamic result,
-    String placementId,
-  ) {
+  Widget _createAdWidget(dynamic result, String placementId) {
     if (result is Map && result.containsKey('viewId')) {
       final viewId = result['viewId'] as String;
 

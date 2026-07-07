@@ -70,12 +70,28 @@ public class BidscubeSdkPlugin: NSObject, FlutterPlugin {
             let enableLogging = config?["enableLogging"] as? Bool ?? true
             let enableDebugMode = config?["enableDebugMode"] as? Bool ?? false
             let defaultAdTimeout = config?["defaultAdTimeout"] as? Int ?? 30000
+            let openRtbPodMetadataEnabled = config?["openRtbPodMetadataEnabled"] as? Bool ?? true
+            let videoPodContinueOnSlotError = config?["videoPodContinueOnSlotError"] as? Bool ?? true
+            let videoPodShowCounter = config?["videoPodShowCounter"] as? Bool ?? true
+
+            let validationModeRaw = config?["videoPodDurationValidationMode"] as? String ?? "lenient"
+            let validationMode: OpenRTBPodDurationValidationMode =
+                validationModeRaw == "strict" ? .strict : .lenient
+
+            let skipPolicyRaw = config?["videoPodSkipPolicy"] as? String ?? "skipCurrentAndContinue"
+            let skipPolicy: OpenRTBPodSkipPolicy =
+                skipPolicyRaw == "failEntirePod" ? .failEntirePod : .skipCurrentAndContinue
 
             let sdkConfig = SDKConfig.Builder()
                 .baseURL(baseURL)
                 .enableLogging(enableLogging)
                 .enableDebugMode(enableDebugMode)
                 .defaultAdTimeout(defaultAdTimeout)
+                .openRtbPodMetadataEnabled(openRtbPodMetadataEnabled)
+                .videoPodDurationValidationMode(validationMode)
+                .videoPodSkipPolicy(skipPolicy)
+                .videoPodContinueOnSlotError(videoPodContinueOnSlotError)
+                .videoPodShowCounter(videoPodShowCounter)
                 .build()
 
             BidscubeSDK.initialize(config: sdkConfig)

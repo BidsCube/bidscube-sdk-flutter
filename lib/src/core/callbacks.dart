@@ -15,11 +15,7 @@ abstract class AdCallback {
   void onAdDisplayed(String placementId) {}
 
   /// Called when ad fails to load or display
-  void onAdFailed(
-    String placementId,
-    String errorCode,
-    String errorMessage,
-  ) {}
+  void onAdFailed(String placementId, String errorCode, String errorMessage) {}
 
   /// Called when ad is clicked
   void onAdClicked(String placementId) {}
@@ -41,7 +37,7 @@ abstract class AdCallback {
 
   /// Host overrides rendering — leave null for default SDK widgets.
   void Function(String placementId, String adm, AdPosition position)?
-      onAdRenderOverride;
+  onAdRenderOverride;
 }
 
 /// Default implementation — logs lifecycle to [SDKLogger].

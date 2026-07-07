@@ -23,12 +23,8 @@ abstract class BidscubePlatform {
     AdCallback? callback,
     AdPosition position, [
     double? borderRadius,
-  ]) => getInterstitialVideoAdView(
-        placementId,
-        callback,
-        position,
-        borderRadius,
-      );
+  ]) =>
+      getInterstitialVideoAdView(placementId, callback, position, borderRadius);
 
   /// Flutter — interstitial (non-rewarded) full-screen inline video placement.
   Future<Widget> getInterstitialVideoAdView(

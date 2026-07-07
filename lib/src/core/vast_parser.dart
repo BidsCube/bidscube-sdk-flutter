@@ -39,7 +39,11 @@ class VastParser {
         'Unknown';
 
     final adTitle =
-        inlineElement.findAllElements('AdTitle').firstOrNull?.innerText.trim() ??
+        inlineElement
+            .findAllElements('AdTitle')
+            .firstOrNull
+            ?.innerText
+            .trim() ??
         '';
 
     final description =
@@ -101,8 +105,9 @@ class VastParser {
   static VastCompanionCreative _parseCompanionCreative(
     XmlElement companionAdsElement,
   ) {
-    final companionElement =
-        companionAdsElement.findElements('Companion').firstOrNull;
+    final companionElement = companionAdsElement
+        .findElements('Companion')
+        .firstOrNull;
 
     String? staticResourceUrl;
     String staticResourceType = '';

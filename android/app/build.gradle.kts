@@ -21,10 +21,10 @@ android {
 
     defaultConfig {
         applicationId = "com.bidscube.bidscube_sdk_flutter"
-        minSdk = flutter.minSdkVersion
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
-    versionCode = 10202
-    versionName = "1.2.2"
+        versionCode = 10300
+        versionName = "1.3.0"
     }
 
     buildTypes {
@@ -34,6 +34,10 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
 
 flutter {

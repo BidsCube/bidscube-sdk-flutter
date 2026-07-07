@@ -1,7 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 import 'package:http/http.dart' as http;
+
+import 'ad_position.dart';
+import 'ad_type.dart';
+import 'callbacks.dart';
+import 'constants.dart';
+import 'logger.dart';
+import 'sdk_config.dart';
+import 'url_builder.dart';
+import '../openrtb/video_ad_payload_resolver.dart';
 
 /// HTTP client for making ad requests without native dependencies
 class AdRequestClient {
@@ -19,15 +27,18 @@ class AdRequestClient {
   /// [baseUrl] sets the base URL for ad requests. Defaults to [Constants.baseURL].
   /// [timeout] sets the request timeout. Defaults to 30 seconds.
   /// [defaultHeaders] sets default headers for all requests.
+  /// [client] optional HTTP client (for tests).
   AdRequestClient({
     String? baseUrl,
     Duration? timeout,
     Map<String, String>? defaultHeaders,
+    http.Client? client,
   }) : baseUrl = baseUrl ?? Constants.baseURL,
        timeout = timeout ?? _defaultTimeout,
-       _defaultHeaders = defaultHeaders ?? {};
+       _defaultHeaders = defaultHeaders ?? {},
+       _client = client ?? http.Client();
 
-  /// Request native ad
+  final http.Client _client;
   Future<Map<String, dynamic>?> requestNativeAd({
     required String placementId,
     Map<String, String>? additionalHeaders,
@@ -42,6 +53,7 @@ class AdRequestClient {
         placementId: placementId,
         adType: AdType.native,
         position: AdPosition.unknown,
+        baseURL: baseUrl,
       );
 
       if (apiURL == null) {
@@ -57,7 +69,7 @@ class AdRequestClient {
         ...additionalHeaders ?? {},
       };
 
-      final response = await http
+      final response = await _client
           .get(uri, headers: requestHeaders)
           .timeout(timeout);
 
@@ -94,6 +106,7 @@ class AdRequestClient {
         placementId: placementId,
         adType: AdType.banner,
         position: AdPosition.unknown,
+        baseURL: baseUrl,
       );
 
       if (apiURL == null) {
@@ -109,7 +122,7 @@ class AdRequestClient {
         ...additionalHeaders ?? {},
       };
 
-      final response = await http
+      final response = await _client
           .get(uri, headers: requestHeaders)
           .timeout(timeout);
 
@@ -131,11 +144,12 @@ class AdRequestClient {
     }
   }
 
-  /// Request video ad (JSON with `adm` or raw VAST/XML).
+  /// Request video ad (JSON with `adm`, OpenRTB pods, or raw VAST/XML).
   Future<String?> requestVideoAd({
     required String placementId,
     Map<String, String>? additionalHeaders,
     AdCallback? callback,
+    SDKConfig? config,
   }) async {
     try {
       callback?.onAdLoading(placementId);
@@ -145,6 +159,7 @@ class AdRequestClient {
         placementId: placementId,
         adType: AdType.video,
         position: AdPosition.unknown,
+        baseURL: baseUrl,
       );
 
       if (apiURL == null) {
@@ -160,7 +175,7 @@ class AdRequestClient {
         ...additionalHeaders ?? {},
       };
 
-      final response = await http
+      final response = await _client
           .get(uri, headers: requestHeaders)
           .timeout(timeout);
 
@@ -172,34 +187,49 @@ class AdRequestClient {
         throw AdRequestException(msg, response.statusCode);
       }
 
-      final trimmed = response.body.trimLeft();
+      final body = response.body;
+      final resolved = VideoAdPayloadResolver.resolve(
+        content: body,
+        config: config,
+      );
+      if (resolved != null) {
+        final playable =
+            resolved.adsResponse ?? resolved.vastXml ?? resolved.adTagUrl;
+        if (playable != null && playable.isNotEmpty) {
+          if (callback?.onAdRenderOverride != null) {
+            callback!.onAdRenderOverride!(
+              placementId,
+              playable,
+              resolved.position,
+            );
+          } else {
+            callback?.onAdLoaded(placementId);
+          }
+          return playable;
+        }
+      }
 
+      final trimmed = body.trimLeft();
       Map<String, dynamic>? jsonEnvelope;
       if (trimmed.startsWith('{')) {
         try {
-          final decoded = json.decode(response.body);
+          final decoded = json.decode(body);
           if (decoded is Map<String, dynamic>) {
             jsonEnvelope = decoded;
           }
         } catch (_) {
           callback?.onAdLoaded(placementId);
-          return response.body;
+          return body;
         }
       }
 
       if (jsonEnvelope != null) {
         onAdReceived(jsonEnvelope, callback, placementId);
-        final adm = jsonEnvelope['adm'];
-        if (adm == null ||
-            (adm is String && adm.trim().isEmpty)) {
-          return response.body;
-        }
-        final admXml = adm is String ? adm : json.encode(adm);
-        return admXml.isEmpty ? response.body : admXml;
+        return body;
       }
 
       callback?.onAdLoaded(placementId);
-      return response.body;
+      return body;
     } catch (e) {
       SDKLogger.error('Video ad request failed', e);
       callback?.onAdFailed(placementId, 'REQUEST_ERROR', e.toString());
