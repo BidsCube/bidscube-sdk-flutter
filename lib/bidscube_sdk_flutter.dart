@@ -1,7 +1,12 @@
 /// BidsCube Flutter SDK
 ///
-/// A comprehensive Flutter SDK for displaying image, video, and native ads
-/// across all platforms (Android, iOS, Web, Desktop).
+/// A Flutter SDK for displaying banner/image, video, and native ads on mobile.
+///
+/// Officially documented mobile targets: Android and iOS.
+/// Flutter-only mode is the recommended production path for Android.
+/// Web/Desktop are not official production targets in v1.2.6.
+///
+/// Banner/image creatives are exposed through [BidscubeSDK.getBannerAdView].
 library;
 
 // Core SDK

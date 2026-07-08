@@ -10,6 +10,7 @@ import 'logger.dart';
 import 'sdk_config.dart';
 import 'url_builder.dart';
 import '../openrtb/video_ad_payload_resolver.dart';
+import 'adm_markup_extractor.dart';
 
 /// HTTP client for making ad requests without native dependencies
 class AdRequestClient {
@@ -243,13 +244,9 @@ class AdRequestClient {
     String placementId,
   ) {
     if (callback?.onAdRenderOverride != null) {
-      final admDynamic = data['adm'];
-      final admStr = admDynamic is String
-          ? admDynamic
-          : (admDynamic != null ? json.encode(admDynamic) : '');
       callback?.onAdRenderOverride!(
         placementId,
-        admStr,
+        AdmMarkupExtractor.admFromResponse(data),
         AdPositionExtension.fromValue(
           ((data['position'] as num?)?.toInt()) ?? 0,
         ),

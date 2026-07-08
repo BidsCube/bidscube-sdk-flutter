@@ -1,7 +1,13 @@
+## 1.2.6
+
+* **Banner adm normalization** via new `AdmMarkupExtractor`: unwraps JSON/`document.write` envelopes and strips embedded `{ "adm": "..." }` text nodes from live banner markup before WebView rendering.
+* `WebViewImageAdView` and `AdRequestClient.onAdReceived` now use normalized adm for default rendering and `onAdRenderOverride`.
+* README aligned with v1.2.5+ public API, platform requirements, and Flutter-only Android guidance.
+
 ## 1.2.5
 
 * **OpenRTB 2.6-style podded video response parsing** (response-side only; legacy GET ad requests unchanged).
-* New `SDKConfig` pod options: `openRtbPodMetadataEnabled`, `videoPodDurationValidationMode`, `videoPodSkipPolicy`, `videoPodContinueOnSlotError`, `videoPodShowCounter`.
+* New `SDKConfig` pod options: `openRtbPodMetadataEnabled`, `videoPodDurationValidationMode`, `videoPodSkipPolicy`, `videoPodContinueOnSlotError`, `videoPodShowCounter` (forwarded to native SDKs for pod UI where supported; Flutter-only may not show a dedicated counter yet).
 * Dart OpenRTB layer: normalizer, playback plan builder, VAST pod composer, and `VideoAdPayloadResolver` integrated into `ImaVastVideoAdView` and `AdRequestClient`.
 * Supported response shapes: root `adm`, `bids[]`, `seatbid[].bid[]`, `openrtb.video` / `openRtb.video` / root `video`; pod modes: structured, dynamic, hybrid.
 * `AdRequestClient` now passes custom `baseURL` to all ad request methods.

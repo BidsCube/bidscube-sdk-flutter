@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'package:flutter/scheduler.dart';
+import '../core/adm_markup_extractor.dart';
 
 /// WebView-based Image Ad View Widget
 /// Renders image ads using WebView without native code dependencies
@@ -135,7 +136,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
           try {
             widget.callback?.onAdRenderOverride!(
               widget.placementId,
-              adData['adm'] ?? '',
+              AdmMarkupExtractor.admFromResponse(adData),
               _currentPosition,
             );
             return; // Skip SDK rendering
@@ -238,112 +239,23 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
   }
 
   String _createAdHTML(Map<String, dynamic> adData) {
-    final adm = adData['adm'] as String? ?? '';
+    final cleanedAdm = AdmMarkupExtractor.admFromResponse(adData);
     final clickUrl = adData['clickUrl'] as String? ?? '';
     final title = adData['title'] as String? ?? 'Advertisement';
     final description = adData['description'] as String? ?? '';
 
-    // Extract HTML from document.write() if present
-    String cleanedAdm = adm;
-    if (adm.contains('document.write(')) {
-      cleanedAdm = _extractFromDocumentWrite(adm);
-      SDKLogger.info('Cleaned HTML: $cleanedAdm');
-    }
+    SDKLogger.info('Normalized banner adm length: ${cleanedAdm.length}');
 
-    // Check if adm contains HTML content (has HTML tags)
     final hasHtmlTags = cleanedAdm.contains('<') && cleanedAdm.contains('>');
     final hasDoctype = cleanedAdm.toLowerCase().contains('<!doctype');
 
     if (hasHtmlTags && !hasDoctype) {
-      // adm contains HTML without DOCTYPE, wrap it properly
       return _wrapHtml(cleanedAdm);
     } else if (hasDoctype) {
-      // adm already contains full HTML with DOCTYPE, use it directly
       return cleanedAdm;
     } else {
-      // adm is just an image URL or plain text, create full HTML structure
       return _createImageAdHTML(cleanedAdm, title, description, clickUrl);
     }
-  }
-
-  /// Extract HTML content from document.write() statement
-  String _extractFromDocumentWrite(String adm) {
-    try {
-      String content = adm.trim();
-
-      // Pattern 1: document.write(<html content>); - unquoted HTML
-      // This is what the ad server returns
-      if (content.startsWith('document.write(') && content.endsWith(');')) {
-        content = content.substring(
-          'document.write('.length,
-          content.length - 2,
-        );
-        content = content.trim();
-
-        // Unescape the content
-        content = _unescapeHtml(content);
-
-        // Remove the URL text node from span if present
-        content = _cleanupAdContent(content);
-
-        SDKLogger.info('Extracted HTML from document.write (unquoted)');
-        return content;
-      }
-
-      // Pattern 2: document.write("quoted html") or document.write('quoted html')
-      final writeRegex = RegExp(
-        r'document\.write\s*\(\s*['
-        "\"'"
-        r'](.+?)['
-        "\"'"
-        r']\s*\)\s*;?\s*$',
-        dotAll: true,
-      );
-      final match = writeRegex.firstMatch(content);
-
-      if (match != null) {
-        content = match.group(1) ?? content;
-        content = _unescapeHtml(content);
-        content = _cleanupAdContent(content);
-
-        SDKLogger.info('Extracted HTML from document.write (quoted)');
-        return content;
-      }
-
-      SDKLogger.info('No document.write pattern found, returning original');
-      return adm;
-    } catch (e) {
-      SDKLogger.error('Error extracting from document.write', e);
-      return adm;
-    }
-  }
-
-  /// Unescape HTML entities and special characters
-  String _unescapeHtml(String content) {
-    return content
-        .replaceAll(r'\"', '"')
-        .replaceAll(r"\'", "'")
-        .replaceAll(r'\/', '/')
-        .replaceAll(r'\\n', '\n')
-        .replaceAll(r'\\t', '\t')
-        .replaceAll(r'\\', '\\');
-  }
-
-  /// Clean up ad content by removing URL text nodes from span elements
-  String _cleanupAdContent(String content) {
-    // Pattern: <span id="banner_xxx">https://url...\<script>
-    // We need to remove the URL text and the backslash before <script>
-    final urlBeforeScriptRegex = RegExp(
-      r'(<span[^>]*>)(https?://[^\s<>"\\]+)(\\+)(<script)',
-      caseSensitive: false,
-    );
-
-    content = content.replaceAllMapped(urlBeforeScriptRegex, (match) {
-      // Keep the opening span tag and the script tag, remove URL and backslashes
-      return '${match.group(1)}${match.group(4)}';
-    });
-
-    return content;
   }
 
   /// Wrap HTML content in a proper HTML structure
