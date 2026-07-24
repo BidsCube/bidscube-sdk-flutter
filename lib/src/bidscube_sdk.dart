@@ -3,6 +3,7 @@ import 'core/sdk_config.dart';
 import 'core/callbacks.dart';
 import 'core/ad_position.dart';
 import 'core/ad_type.dart';
+import 'core/logger.dart';
 import 'platform/bidscube_platform.dart';
 import 'platform/method_channel_bidscube.dart';
 import 'platform/flutter_only_bidscube.dart';
@@ -24,6 +25,9 @@ class BidscubeSDK {
   }) async {
     _config = config;
     _useFlutterOnly = useFlutterOnly;
+
+    SDKLogger.setEnabled(config.enableLogging);
+    SDKLogger.setDebugMode(config.enableDebugMode);
 
     if (useFlutterOnly) {
       _platform = FlutterOnlyBidscube();

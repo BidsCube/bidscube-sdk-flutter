@@ -4,7 +4,7 @@
 ///
 /// Officially documented mobile targets: Android and iOS.
 /// Flutter-only mode is the recommended production path for Android.
-/// Web/Desktop are not official production targets in v1.2.6.
+/// Web/Desktop are not official production targets in v1.2.7.
 ///
 /// Banner/image creatives are exposed through [BidscubeSDK.getBannerAdView].
 library;

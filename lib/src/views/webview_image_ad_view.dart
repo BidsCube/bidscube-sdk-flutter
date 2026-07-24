@@ -181,6 +181,7 @@ class _WebViewImageAdViewState extends State<WebViewImageAdView> {
         placementId: widget.placementId,
         adType: widget.adType,
         position: widget.position,
+        userId: BidscubeSDK.config?.userId,
       );
 
       if (apiURL == null) {

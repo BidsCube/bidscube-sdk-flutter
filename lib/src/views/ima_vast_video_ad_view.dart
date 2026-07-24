@@ -94,6 +94,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   bool _hasClosed = false;
   bool _hasRewarded = false;
   bool _hasFailedOrAbortedFlow = false;
+  bool _isDismissed = false;
 
   @override
   void initState() {
@@ -192,6 +193,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     _previewImageUrl = parsed.previewImageUrl;
     _endCardClickUrl = parsed.endCardClickUrl;
     _skipOffsetSeconds = parsed.skipOffsetSeconds;
+    SDKLogger.info(
+      'VAST metadata parsed: skipOffset=${_skipOffsetSeconds ?? 'none'}s, '
+      'title=${_adTitle.isEmpty ? 'n/a' : _adTitle}',
+    );
   }
 
   void _startSkipCountdown() {
@@ -284,28 +289,30 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     }
 
     _notifyClosed();
+    if (mounted) {
+      setState(() => _isDismissed = true);
+    }
     widget.onDismiss?.call();
   }
 
   Future<void> _handleSkipTap() async {
-    if (!_skipAvailable) {
+    if (!_skipAvailable || _hasSkipped) {
       return;
     }
 
     _stopSkipCountdown();
+    SDKLogger.info('Skip tapped for placement ${widget.placementId}');
 
     try {
       await _adsManager?.skip();
     } catch (e) {
-      SDKLogger.error('IMA skip() failed, forcing skip flow', e);
+      SDKLogger.warning('IMA skip() failed, forcing skip flow: $e');
     }
 
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    if (!mounted || _hasSkipped || _showEndCard) {
-      return;
+    // Inline VAST via AdsRequest.withAdsResponse may not emit AdEventType.skipped.
+    if (!_hasSkipped) {
+      _forceSkip();
     }
-
-    _forceSkip();
   }
 
   void _forceSkip() {
@@ -430,6 +437,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         adType: widget.adType,
         position: widget.position,
         baseURL: widget.baseUrl,
+        userId: BidscubeSDK.config?.userId,
       );
 
       if (apiURL == null) {
@@ -682,36 +690,45 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   }
 
   Widget _buildVideoControlsOverlay(BuildContext context) {
-    final topPadding = MediaQuery.paddingOf(context).top + 8;
-    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+    final topPadding = widget.position == AdPosition.fullScreen
+        ? MediaQuery.paddingOf(context).top + 8
+        : 8.0;
+    final bottomPadding = widget.position == AdPosition.fullScreen
+        ? MediaQuery.paddingOf(context).bottom
+        : 0.0;
 
     if (_skipOffsetSeconds == null || !_hasStarted) {
       return const SizedBox.shrink();
     }
 
-    return Stack(
-      children: [
-        // Hide the IMA native skip button (bottom-right inside platform view).
-        Positioned(
-          right: 0,
-          bottom: bottomPadding,
-          child: PointerInterceptor(
+    return PointerInterceptor(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Hide the IMA native skip button (bottom-right inside platform view).
+          Positioned(
+            right: 0,
+            bottom: bottomPadding,
             child: Container(width: 132, height: 52, color: Colors.black),
           ),
-        ),
-        VideoAdSkipButton(
-          isAvailable: _skipAvailable,
-          countdownSeconds: _skipCountdown,
-          onPressed: _handleSkipTap,
-          topPadding: topPadding,
-        ),
-      ],
+          VideoAdSkipButton(
+            isAvailable: _skipAvailable,
+            countdownSeconds: _skipCountdown,
+            onPressed: _handleSkipTap,
+            topPadding: topPadding,
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (widget.callback?.onAdRenderOverride != null) {
+      return SizedBox(width: widget.width, height: widget.height);
+    }
+
+    if (_isDismissed) {
       return SizedBox(width: widget.width, height: widget.height);
     }
 

@@ -12,6 +12,7 @@ void main() {
           .defaultAdTimeout(30000)
           .defaultAdPosition(AdPosition.header)
           .enableTestMode(true)
+          .userId('publisher-user-42')
           .build();
     });
 
@@ -21,6 +22,7 @@ void main() {
       expect(config.defaultAdTimeout, 30000);
       expect(config.defaultAdPosition, AdPosition.header);
       expect(config.enableTestMode, true);
+      expect(config.userId, 'publisher-user-42');
     });
 
     test('SDKConfig should convert to map correctly', () {
@@ -30,6 +32,7 @@ void main() {
       expect(map['defaultAdTimeout'], 30000);
       expect(map['defaultAdPosition'], 'header');
       expect(map['enableTestMode'], true);
+      expect(map['userId'], 'publisher-user-42');
     });
 
     test('SDKConfig should be created from map correctly', () {
@@ -40,6 +43,7 @@ void main() {
         'defaultAdTimeout': 30000,
         'defaultAdPosition': 'footer',
         'enableTestMode': false,
+        'userId': 'user-from-map',
       };
 
       final configFromMap = SDKConfig.fromMap(map);
@@ -49,6 +53,7 @@ void main() {
       expect(configFromMap.defaultAdTimeout, 30000);
       expect(configFromMap.defaultAdPosition, AdPosition.footer);
       expect(configFromMap.enableTestMode, false);
+      expect(configFromMap.userId, 'user-from-map');
     });
 
     test('AdType should have correct string values', () {

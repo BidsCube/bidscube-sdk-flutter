@@ -22,21 +22,25 @@ class AdRequestClient {
   /// The timeout duration for ad requests.
   final Duration timeout;
   final Map<String, String> _defaultHeaders;
+  final String? _userId;
 
   /// Creates an [AdRequestClient].
   ///
   /// [baseUrl] sets the base URL for ad requests. Defaults to [Constants.baseURL].
   /// [timeout] sets the request timeout. Defaults to 30 seconds.
   /// [defaultHeaders] sets default headers for all requests.
+  /// [userId] publisher app user id sent as `user_id` query parameter.
   /// [client] optional HTTP client (for tests).
   AdRequestClient({
     String? baseUrl,
     Duration? timeout,
     Map<String, String>? defaultHeaders,
+    String? userId,
     http.Client? client,
   }) : baseUrl = baseUrl ?? Constants.baseURL,
        timeout = timeout ?? _defaultTimeout,
        _defaultHeaders = defaultHeaders ?? {},
+       _userId = userId,
        _client = client ?? http.Client();
 
   final http.Client _client;
@@ -55,6 +59,7 @@ class AdRequestClient {
         adType: AdType.native,
         position: AdPosition.unknown,
         baseURL: baseUrl,
+        userId: _userId,
       );
 
       if (apiURL == null) {
@@ -108,6 +113,7 @@ class AdRequestClient {
         adType: AdType.banner,
         position: AdPosition.unknown,
         baseURL: baseUrl,
+        userId: _userId,
       );
 
       if (apiURL == null) {
@@ -161,6 +167,7 @@ class AdRequestClient {
         adType: AdType.video,
         position: AdPosition.unknown,
         baseURL: baseUrl,
+        userId: _userId,
       );
 
       if (apiURL == null) {

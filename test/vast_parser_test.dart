@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
+import 'package:bidscube_sdk_flutter/src/openrtb/video_ad_payload_resolver.dart';
 
 const _vastWithPreview = '''
 <VAST version="4.2">
@@ -90,6 +91,28 @@ void main() {
       expect(VastParser.parseSkipOffsetSeconds('00:01:30'), 90);
       expect(VastParser.parseSkipOffsetSeconds('10'), 10);
       expect(VastParser.parseSkipOffsetSeconds(null), isNull);
+    });
+
+    test('parses inline Bidscube JSON adm with skipoffset', () {
+      const jsonBody =
+          '{"adm":"<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>'
+          '<VAST version=\\"3.0\\"><Ad id=\\"test-inline-1\\"><InLine>'
+          '<AdTitle>Inline Test Video</AdTitle>'
+          '<Creatives><Creative sequence=\\"1\\">'
+          '<Linear skipoffset=\\"00:00:05\\"><Duration>00:00:15</Duration>'
+          '<MediaFiles><MediaFile delivery=\\"progressive\\" type=\\"video/mp4\\">'
+          '<![CDATA[https://example.com/video.mp4]]></MediaFile></MediaFiles>'
+          '</Linear></Creative></Creatives></InLine></Ad></VAST>","position":4}';
+
+      final resolved = VideoAdPayloadResolver.resolve(content: jsonBody);
+      expect(resolved, isNotNull);
+      expect(resolved!.vastXml, contains('skipoffset="00:00:05"'));
+      expect(resolved.position, AdPosition.header);
+
+      final parsed = VastParser.tryParse(resolved.vastXml!);
+      expect(parsed, isNotNull);
+      expect(parsed!.skipOffsetSeconds, 5);
+      expect(parsed.adTitle, 'Inline Test Video');
     });
   });
 }

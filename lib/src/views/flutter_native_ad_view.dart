@@ -106,6 +106,7 @@ class _FlutterNativeAdViewState extends State<FlutterNativeAdView> {
         placementId: widget.placementId,
         adType: widget.adType,
         position: widget.position,
+        userId: BidscubeSDK.config?.userId,
       );
 
       if (apiURL == null) {

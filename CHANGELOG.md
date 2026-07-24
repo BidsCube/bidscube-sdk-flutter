@@ -1,3 +1,10 @@
+## 1.2.7
+
+* **`SDKConfig.userId`**: optional publisher app user identifier set at SDK initialization; forwarded on every ad request as the `user_id` query parameter (banner, video, native).
+* **Ad request logging**: logs `user_id` and the full ad request URL when building requests.
+* **`SDKLogger`**: respects `enableLogging` / `enableDebugMode` from `SDKConfig` during initialization.
+* **Flutter-only VAST skip**: improved custom skip control for inline VAST/IMA playback — pointer interception on the overlay, forced skip when IMA does not emit `skipped`, and dismiss state cleanup.
+
 ## 1.2.6
 
 * **Banner adm normalization** via new `AdmMarkupExtractor`: unwraps JSON/`document.write` envelopes and strips embedded `{ "adm": "..." }` text nodes from live banner markup before WebView rendering.

@@ -84,6 +84,9 @@ class SDKConfig {
   /// Show pod slot counter UI in native pod playback (when supported).
   final bool videoPodShowCounter;
 
+  /// Publisher app user identifier sent as `user_id` on ad requests.
+  final String? userId;
+
   const SDKConfig({
     required this.baseURL,
     this.enableLogging = true,
@@ -97,6 +100,7 @@ class SDKConfig {
     this.videoPodSkipPolicy = OpenRtbPodSkipPolicy.skipCurrentAndContinue,
     this.videoPodContinueOnSlotError = true,
     this.videoPodShowCounter = true,
+    this.userId,
   });
 
   /// Create SDKConfig from Map
@@ -121,6 +125,7 @@ class SDKConfig {
       ),
       videoPodContinueOnSlotError: map['videoPodContinueOnSlotError'] ?? true,
       videoPodShowCounter: map['videoPodShowCounter'] ?? true,
+      userId: map['userId'] as String?,
     );
   }
 
@@ -139,6 +144,7 @@ class SDKConfig {
       'videoPodSkipPolicy': videoPodSkipPolicy.toStableString(),
       'videoPodContinueOnSlotError': videoPodContinueOnSlotError,
       'videoPodShowCounter': videoPodShowCounter,
+      if (userId != null) 'userId': userId,
     };
   }
 
@@ -161,6 +167,7 @@ class SDKConfigBuilder {
       OpenRtbPodSkipPolicy.skipCurrentAndContinue;
   bool _videoPodContinueOnSlotError = true;
   bool _videoPodShowCounter = true;
+  String? _userId;
 
   /// Set base URL
   SDKConfigBuilder baseURL(String url) {
@@ -225,6 +232,12 @@ class SDKConfigBuilder {
     return this;
   }
 
+  /// Set publisher app user id (sent as `user_id` on ad requests).
+  SDKConfigBuilder userId(String userId) {
+    _userId = userId;
+    return this;
+  }
+
   /// Build SDKConfig
   SDKConfig build() {
     return SDKConfig(
@@ -239,6 +252,7 @@ class SDKConfigBuilder {
       videoPodSkipPolicy: _videoPodSkipPolicy,
       videoPodContinueOnSlotError: _videoPodContinueOnSlotError,
       videoPodShowCounter: _videoPodShowCounter,
+      userId: _userId,
     );
   }
 }

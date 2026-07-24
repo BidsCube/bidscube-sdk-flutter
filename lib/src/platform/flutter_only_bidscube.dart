@@ -29,9 +29,15 @@ class FlutterOnlyBidscube extends BidscubePlatform {
         baseUrl: config.baseURL,
         timeout: Duration(milliseconds: config.defaultAdTimeout),
         defaultHeaders: {'X-SDK-Version': '1.0.0', 'X-Platform': 'Flutter'},
+        userId: config.userId,
       );
 
-      SDKLogger.info('BidsCube Flutter-only SDK initialized successfully');
+      final userIdLog = (config.userId != null && config.userId!.isNotEmpty)
+          ? ' (user_id: ${config.userId})'
+          : '';
+      SDKLogger.info(
+        'BidsCube Flutter-only SDK initialized successfully$userIdLog',
+      );
     } catch (e) {
       SDKLogger.error('Failed to initialize Flutter-only SDK', e);
       rethrow;

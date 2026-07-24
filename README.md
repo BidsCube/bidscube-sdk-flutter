@@ -45,7 +45,7 @@ dependencies:
   bidscube_sdk_flutter:
     git:
       url: https://github.com/bidscube/bidscube-sdk-flutter.git
-      ref: v1.2.6 # use the tag you want
+      ref: v1.2.7 # use the tag you want
 ```
 
 - **Private clone URL / SSH**: set `url` to a form your CI and developers can clone (for example `git@github.com:bidscube/bidscube-sdk-flutter.git` with deploy keys or SSH agent).
@@ -66,6 +66,7 @@ import 'package:bidscube_sdk_flutter/bidscube_sdk_flutter.dart';
 
 final config = SDKConfig.builder()
     .baseURL('https://ssp-bcc-ads.com/sdk')
+    .userId('your-app-user-id') // sent as `user_id` on every ad request
     .enableLogging(true)
     .enableDebugMode(true)
     .defaultAdTimeout(30000)
@@ -346,6 +347,7 @@ Primary QA targets: **Android and iOS**. Web/Desktop are not official production
 ```dart
 final config = SDKConfig.builder()
     .baseURL('https://ssp-bcc-ads.com/sdk')
+    .userId('your-app-user-id')
     .enableLogging(true)
     .enableDebugMode(true)
     .defaultAdTimeout(30000)
@@ -395,4 +397,4 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history. Current version: **1.2.6**.
+See [CHANGELOG.md](CHANGELOG.md) for the full release history. Current version: **1.2.7**.

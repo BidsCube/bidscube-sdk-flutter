@@ -35,7 +35,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _sdkReady = true;
       return;
     }
-    final config = SDKConfig.builder().enableLogging(true).build();
+    final config = SDKConfig.builder()
+        .enableLogging(true)
+        .userId('example-user-id')
+        .build();
     await BidscubeSDK.initialize(config: config, useFlutterOnly: true);
     if (mounted) setState(() => _sdkReady = true);
   }

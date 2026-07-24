@@ -78,5 +78,22 @@ void main() {
       expect(capturedUri, isNotNull);
       expect(capturedUri!.origin + capturedUri!.path, customBaseUrl);
     });
+
+    test('ad requests include user_id when configured', () async {
+      Uri? capturedUri;
+      final client = AdRequestClient(
+        baseUrl: customBaseUrl,
+        userId: 'publisher-user-42',
+        client: MockClient((request) async {
+          capturedUri = request.url;
+          return http.Response('{"adm":"<div>banner</div>"}', 200);
+        }),
+      );
+
+      await client.requestBannerAd(placementId: 'banner-placement');
+
+      expect(capturedUri, isNotNull);
+      expect(capturedUri!.queryParameters['user_id'], 'publisher-user-42');
+    });
   });
 }

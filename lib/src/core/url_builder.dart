@@ -19,6 +19,7 @@ class URLBuilder {
     bool debug = false,
     String? ctaText,
     String? baseURL,
+    String? userId,
   }) async {
     try {
       final base = baseURL ?? Constants.baseURL;
@@ -27,6 +28,7 @@ class URLBuilder {
       final queryParams = await _buildCommonQueryParams(
         placementId: placementId,
         adType: adType,
+        userId: userId,
       );
 
       queryParams.addAll(_buildPrivacyQueryParams());
@@ -38,7 +40,13 @@ class URLBuilder {
       final finalUri = uri.replace(queryParameters: queryParams);
       final url = finalUri.toString();
 
-      SDKLogger.info('Building URL for ${adType.value} ad: $placementId');
+      final userIdSuffix = (userId != null && userId.isNotEmpty)
+          ? ', user_id: $userId'
+          : '';
+      SDKLogger.info(
+        'Building URL for ${adType.value} ad: $placementId$userIdSuffix',
+      );
+      SDKLogger.info('Ad request URL: $url');
 
       return url;
     } catch (e) {
@@ -51,6 +59,7 @@ class URLBuilder {
   static Future<Map<String, String>> _buildCommonQueryParams({
     required String placementId,
     required AdType adType,
+    String? userId,
   }) async {
     final deviceInfo = await _getDeviceInfo();
     final packageInfo = await PackageInfo.fromPlatform();
@@ -68,6 +77,10 @@ class URLBuilder {
       'ifa': deviceInfo['advertisingId'] ?? '',
       'dnt': deviceInfo['doNotTrack'] ?? '0',
     };
+
+    if (userId != null && userId.isNotEmpty) {
+      params['user_id'] = userId;
+    }
 
     // Add ad type specific parameters
     switch (adType) {
@@ -317,6 +330,7 @@ class URLBuilder {
     required AdType adType,
     AdPosition position = AdPosition.unknown,
     String? baseURL,
+    String? userId,
   }) async {
     try {
       final apiURL = await buildAdRequestURL(
@@ -324,6 +338,7 @@ class URLBuilder {
         adType: adType,
         position: position,
         baseURL: baseURL,
+        userId: userId,
       );
 
       if (apiURL == null) return null;

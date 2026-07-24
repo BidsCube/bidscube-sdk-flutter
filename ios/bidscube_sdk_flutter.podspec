@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'bidscube_sdk_flutter'
-  s.version          = "1.2.6"
+  s.version          = "1.2.7"
   s.summary          = 'BidsCube Flutter SDK for displaying image, video, and native ads across all platforms.'
   s.description      = <<-DESC
 BidsCube Flutter SDK for displaying image, video, and native ads across all platforms.
