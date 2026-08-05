@@ -1,3 +1,12 @@
+## 1.2.8
+
+* **`SDKConfig.autoClose`**: optional fullscreen video auto-close after complete/skip (default `false`); when false, show VAST Companion end card or last frame with manual close.
+* **VAST Companion end cards**: Static, HTML, and IFrame resources with click/view tracking; priority HTML → IFrame → Static.
+* **`VideoAdRequestLoader`**: unified video HTTP fetch + payload resolution with timeout, JSON/`adm` fallbacks, and clearer error codes (`NO_FILL`, `HTTP_4xx`, `NO_PLAYABLE_PAYLOAD`).
+* **Default skip offset**: 15 seconds when VAST has no `skipoffset`; explicit VAST value still wins.
+* **Fullscreen layout**: video player expands to viewport and is centered for `AdPosition.fullScreen`.
+* **Lifecycle**: centralized ad session close; skip without reward; interactive post-video (mini-game) hold until session ends.
+
 ## 1.2.7
 
 * **`SDKConfig.userId`**: optional publisher app user identifier set at SDK initialization; forwarded on every ad request as the `user_id` query parameter (banner, video, native).

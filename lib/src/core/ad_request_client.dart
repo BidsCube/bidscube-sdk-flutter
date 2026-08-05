@@ -9,8 +9,8 @@ import 'constants.dart';
 import 'logger.dart';
 import 'sdk_config.dart';
 import 'url_builder.dart';
-import '../openrtb/video_ad_payload_resolver.dart';
 import 'adm_markup_extractor.dart';
+import 'video_ad_request_loader.dart';
 
 /// HTTP client for making ad requests without native dependencies
 class AdRequestClient {
@@ -174,7 +174,6 @@ class AdRequestClient {
         throw AdRequestException('Failed to build request URL', -1);
       }
 
-      final uri = Uri.parse(apiURL);
       final userAgent = await URLBuilder.buildBrowserUserAgent();
       final requestHeaders = {
         'Accept': '*/*',
@@ -183,64 +182,43 @@ class AdRequestClient {
         ...additionalHeaders ?? {},
       };
 
-      final response = await _client
-          .get(uri, headers: requestHeaders)
-          .timeout(timeout);
-
-      SDKLogger.info('Video ad response: ${response.statusCode}');
-
-      if (response.statusCode != 200) {
-        final msg = 'Failed to load video ad: ${response.statusCode}';
-        callback?.onAdFailed(placementId, 'HTTP_${response.statusCode}', msg);
-        throw AdRequestException(msg, response.statusCode);
-      }
-
-      final body = response.body;
-      final resolved = VideoAdPayloadResolver.resolve(
-        content: body,
-        config: config,
+      final resolvedConfig =
+          config ?? SDKConfig(baseURL: baseUrl, defaultAdTimeout: timeout.inMilliseconds);
+      final loader = VideoAdRequestLoader(client: _client);
+      final loadResult = await loader.loadFromUrl(
+        apiURL: apiURL,
+        config: resolvedConfig,
+        headers: requestHeaders,
       );
-      if (resolved != null) {
-        final playable =
-            resolved.adsResponse ?? resolved.vastXml ?? resolved.adTagUrl;
-        if (playable != null && playable.isNotEmpty) {
-          if (callback?.onAdRenderOverride != null) {
-            callback!.onAdRenderOverride!(
-              placementId,
-              playable,
-              resolved.position,
-            );
-          } else {
-            callback?.onAdLoaded(placementId);
-          }
-          return playable;
-        }
+
+      SDKLogger.info('Video ad response: ${loadResult.statusCode}');
+
+      if (!loadResult.isSuccess) {
+        final code = loadResult.errorCode ?? 'REQUEST_ERROR';
+        final msg = loadResult.errorMessage ?? 'Video ad request failed';
+        callback?.onAdFailed(placementId, code, msg);
+        throw AdRequestException(msg, loadResult.statusCode);
       }
 
-      final trimmed = body.trimLeft();
-      Map<String, dynamic>? jsonEnvelope;
-      if (trimmed.startsWith('{')) {
-        try {
-          final decoded = json.decode(body);
-          if (decoded is Map<String, dynamic>) {
-            jsonEnvelope = decoded;
-          }
-        } catch (_) {
-          callback?.onAdLoaded(placementId);
-          return body;
-        }
-      }
+      final payload = loadResult.payload!;
+      final playable =
+          payload.adsResponse ?? payload.vastXml ?? payload.adTagUrl ?? '';
 
-      if (jsonEnvelope != null) {
-        onAdReceived(jsonEnvelope, callback, placementId);
-        return body;
+      if (callback?.onAdRenderOverride != null) {
+        callback!.onAdRenderOverride!(
+          placementId,
+          playable,
+          payload.position,
+        );
+      } else {
+        callback?.onAdLoaded(placementId);
       }
-
-      callback?.onAdLoaded(placementId);
-      return body;
+      return playable;
     } catch (e) {
       SDKLogger.error('Video ad request failed', e);
-      callback?.onAdFailed(placementId, 'REQUEST_ERROR', e.toString());
+      if (e is! AdRequestException) {
+        callback?.onAdFailed(placementId, 'REQUEST_ERROR', e.toString());
+      }
       rethrow;
     }
   }

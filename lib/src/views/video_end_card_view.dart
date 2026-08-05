@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
+import '../core/vast_parser.dart';
 import 'video_ad_overlay_controls.dart';
 
-/// End card shown after video complete or skip.
-class VideoEndCardView extends StatelessWidget {
+/// End card shown after video complete when [autoClose] is false and a Companion exists.
+class VideoEndCardView extends StatefulWidget {
+  final VastCompanionCreative? companion;
   final String? previewImageUrl;
   final String adTitle;
   final String? clickUrl;
@@ -14,6 +17,7 @@ class VideoEndCardView extends StatelessWidget {
 
   const VideoEndCardView({
     super.key,
+    this.companion,
     this.previewImageUrl,
     this.adTitle = '',
     this.clickUrl,
@@ -24,14 +28,86 @@ class VideoEndCardView extends StatelessWidget {
   });
 
   @override
+  State<VideoEndCardView> createState() => _VideoEndCardViewState();
+}
+
+class _VideoEndCardViewState extends State<VideoEndCardView> {
+  WebViewController? _webViewController;
+
+  @override
+  void initState() {
+    super.initState();
+    _initWebCompanionIfNeeded();
+  }
+
+  void _initWebCompanionIfNeeded() {
+    final companion = widget.companion;
+    if (companion == null) return;
+
+    switch (companion.resourceType) {
+      case VastCompanionResourceType.html:
+        final html = companion.htmlResource?.trim();
+        if (html == null || html.isEmpty) return;
+        _webViewController = WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..loadHtmlString(html);
+      case VastCompanionResourceType.iframe:
+        final url = companion.iframeResourceUrl?.trim();
+        if (url == null || url.isEmpty) return;
+        final uri = Uri.tryParse(url);
+        if (uri == null) return;
+        _webViewController = WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..loadRequest(uri);
+      case VastCompanionResourceType.staticImage:
+      case VastCompanionResourceType.none:
+        return;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
-    final title = adTitle.trim().isNotEmpty ? adTitle.trim() : 'Ad';
+    final title = widget.adTitle.trim().isNotEmpty ? widget.adTitle.trim() : 'Ad';
+    final companion = widget.companion;
+    final useRichEndCard =
+        companion != null &&
+        companion.resourceType != VastCompanionResourceType.staticImage &&
+        companion.resourceType != VastCompanionResourceType.none;
+
+    if (useRichEndCard && _webViewController != null) {
+      return Container(
+        width: widget.width,
+        height: widget.height,
+        color: Colors.black,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            WebViewWidget(controller: _webViewController!),
+            Positioned(
+              top: topPadding + 8,
+              right: 12,
+              child: EndCardImageCloseButton(onPressed: widget.onClose),
+            ),
+            if (widget.clickUrl != null && widget.onTap != null)
+              Positioned.fill(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(onTap: widget.onTap),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final imageUrl =
+        companion?.staticResourceUrl ?? widget.previewImageUrl?.trim();
 
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       color: Colors.white,
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -46,10 +122,10 @@ class VideoEndCardView extends StatelessWidget {
             Expanded(
               flex: 6,
               child: _PreviewImageSection(
-                previewImageUrl: previewImageUrl,
+                previewImageUrl: imageUrl,
                 adTitle: title,
-                onClose: onClose,
-                onTap: clickUrl != null ? onTap : null,
+                onClose: widget.onClose,
+                onTap: widget.clickUrl != null ? widget.onTap : null,
               ),
             ),
             const SizedBox(height: 16),
@@ -101,9 +177,9 @@ class VideoEndCardView extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (clickUrl != null && onTap != null)
+                if (widget.clickUrl != null && widget.onTap != null)
                   FilledButton(
-                    onPressed: onTap,
+                    onPressed: widget.onTap,
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF0084FF),
                       foregroundColor: Colors.white,

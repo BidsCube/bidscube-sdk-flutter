@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../core/ad_position.dart';
+import '../core/adm_markup_extractor.dart';
 import '../core/logger.dart';
 import '../core/sdk_config.dart';
 import 'openrtb_podded_response_normalizer.dart';
@@ -146,14 +147,19 @@ class VideoAdPayloadResolver {
       return null;
     }
 
-    if (VastAdSequenceParser.isAdTagUrl(adm)) {
-      return ResolvedVideoAdPayload(adTagUrl: adm, position: position);
+    final normalizedAdm = AdmMarkupExtractor.extractRenderMarkup(adm);
+    if (normalizedAdm.isEmpty) {
+      return null;
     }
 
-    if (VastAdSequenceParser.contentLikelyContainsVast(adm)) {
+    if (VastAdSequenceParser.isAdTagUrl(normalizedAdm)) {
+      return ResolvedVideoAdPayload(adTagUrl: normalizedAdm, position: position);
+    }
+
+    if (VastAdSequenceParser.contentLikelyContainsVast(normalizedAdm)) {
       return ResolvedVideoAdPayload(
-        adsResponse: adm,
-        vastXml: adm,
+        adsResponse: normalizedAdm,
+        vastXml: normalizedAdm,
         position: position,
       );
     }

@@ -73,6 +73,7 @@ public class BidscubeSdkPlugin: NSObject, FlutterPlugin {
             let openRtbPodMetadataEnabled = config?["openRtbPodMetadataEnabled"] as? Bool ?? true
             let videoPodContinueOnSlotError = config?["videoPodContinueOnSlotError"] as? Bool ?? true
             let videoPodShowCounter = config?["videoPodShowCounter"] as? Bool ?? true
+            let autoClose = config?["autoClose"] as? Bool ?? false
 
             let validationModeRaw = config?["videoPodDurationValidationMode"] as? String ?? "lenient"
             let validationMode: OpenRTBPodDurationValidationMode =
@@ -93,6 +94,9 @@ public class BidscubeSdkPlugin: NSObject, FlutterPlugin {
                 .videoPodContinueOnSlotError(videoPodContinueOnSlotError)
                 .videoPodShowCounter(videoPodShowCounter)
                 .build()
+
+            // autoClose is consumed by Flutter-only fullscreen video path today.
+            print("📱 [NATIVE] autoClose forwarded from Flutter config: \(autoClose)")
 
             BidscubeSDK.initialize(config: sdkConfig)
 

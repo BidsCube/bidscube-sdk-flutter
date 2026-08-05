@@ -70,16 +70,97 @@ void main() {
       );
       expect(parsed.endCardClickUrl, 'https://www.google.com');
       expect(parsed.skipOffsetSeconds, 5);
+      expect(parsed.explicitSkipOffsetSeconds, 5);
       expect(parsed.adTitle, 'Sample Skippable VAST Ad With Preview');
     });
 
-    test('returns null preview when companion is absent', () {
+    test('returns default 15s skip when companion is absent and skipoffset missing', () {
       final parsed = VastParser.tryParse(_vastWithoutPreview);
       expect(parsed, isNotNull);
-      expect(parsed!.previewImageUrl, isNull);
+      expect(parsed!.explicitSkipOffsetSeconds, isNull);
+      expect(parsed.skipOffsetSeconds, Constants.defaultSkipOffsetSeconds);
+      expect(parsed.previewImageUrl, isNull);
+      expect(parsed.hasCompanion, isFalse);
       expect(parsed.endCardClickUrl, isNull);
-      expect(parsed.skipOffsetSeconds, isNull);
       expect(parsed.adTitle, 'Doordash-35min-burger-3-1x1.mp4');
+    });
+
+    test('parses HTML, IFrame, tracking and prefers HTML companion', () {
+      const vast = '''
+<VAST version="4.2">
+  <Ad>
+    <InLine>
+      <Creatives>
+        <Creative>
+          <CompanionAds>
+            <Companion width="300" height="250">
+              <StaticResource creativeType="image/jpeg">
+                <![CDATA[https://example.com/static.jpg]]>
+              </StaticResource>
+              <HTMLResource><![CDATA[<html>fallback</html>]]></HTMLResource>
+              <IFrameResource><![CDATA[https://example.com/frame.html]]></IFrameResource>
+              <CompanionClickThrough><![CDATA[https://example.com/click]]></CompanionClickThrough>
+              <CompanionClickTracking><![CDATA[https://example.com/click-track]]></CompanionClickTracking>
+              <TrackingEvents>
+                <Tracking event="creativeView"><![CDATA[https://example.com/view]]></Tracking>
+              </TrackingEvents>
+            </Companion>
+          </CompanionAds>
+        </Creative>
+      </Creatives>
+    </InLine>
+  </Ad>
+</VAST>''';
+
+      final parsed = VastParser.tryParse(vast);
+      expect(parsed, isNotNull);
+      final companion = parsed!.preferredCompanion;
+      expect(companion, isNotNull);
+      expect(companion!.resourceType, VastCompanionResourceType.html);
+      expect(companion.htmlResource, contains('fallback'));
+      expect(companion.iframeResourceUrl, 'https://example.com/frame.html');
+      expect(companion.staticResourceUrl, 'https://example.com/static.jpg');
+      expect(companion.clickThroughUrl, 'https://example.com/click');
+      expect(companion.clickTrackingUrls, ['https://example.com/click-track']);
+      expect(companion.viewTrackingUrls, ['https://example.com/view']);
+    });
+
+    test('prefers HTML over IFrame over Static across companions', () {
+      const vast = '''
+<VAST version="4.2">
+  <Ad>
+    <InLine>
+      <Creatives>
+        <Creative>
+          <CompanionAds>
+            <Companion width="300" height="250">
+              <StaticResource creativeType="image/jpeg">
+                <![CDATA[https://example.com/static-only.jpg]]>
+              </StaticResource>
+            </Companion>
+          </CompanionAds>
+        </Creative>
+        <Creative>
+          <CompanionAds>
+            <Companion width="300" height="250">
+              <IFrameResource><![CDATA[https://example.com/iframe.html]]></IFrameResource>
+            </Companion>
+          </CompanionAds>
+        </Creative>
+        <Creative>
+          <CompanionAds>
+            <Companion width="300" height="250">
+              <HTMLResource><![CDATA[<html>preferred</html>]]></HTMLResource>
+            </Companion>
+          </CompanionAds>
+        </Creative>
+      </Creatives>
+    </InLine>
+  </Ad>
+</VAST>''';
+
+      final parsed = VastParser.tryParse(vast);
+      expect(parsed!.preferredCompanion!.resourceType, VastCompanionResourceType.html);
     });
 
     test('tryParse returns null for invalid XML', () {

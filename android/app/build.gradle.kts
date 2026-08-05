@@ -23,8 +23,8 @@ android {
         applicationId = "com.bidscube.bidscube_sdk_flutter"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
-        versionCode = 10207
-        versionName = "1.2.7"
+        versionCode = 10208
+        versionName = "1.2.8"
     }
 
     buildTypes {

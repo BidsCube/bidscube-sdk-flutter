@@ -10,6 +10,9 @@ class Constants {
   /// Default timeout in milliseconds
   static const int defaultTimeoutMs = 30000;
 
+  /// Default seconds before skip becomes available when VAST has no skipoffset.
+  static const int defaultSkipOffsetSeconds = 15;
+
   /// Default ad position
   static const String defaultAdPosition = 'unknown';
 
@@ -31,7 +34,7 @@ class Constants {
   static const String userAgentPrefix = 'BidscubeSDK-Flutter';
 
   /// SDK Version
-  static const String sdkVersion = "1.2.7";
+  static const String sdkVersion = "1.2.8";
 
   /// Error Codes
   static const int errorCodeInvalidURL = -1;
@@ -147,7 +150,7 @@ class Constants {
   static const String defaultPlatform = 'Flutter';
 
   /// WebView Constants
-  static const String webViewUserAgent = "BidscubeSDK-Flutter/1.2.7";
+  static const String webViewUserAgent = "BidscubeSDK-Flutter/1.2.8";
   static const String webViewJavaScriptChannel = 'flutter_inappwebview';
 
   /// Ad View Constants

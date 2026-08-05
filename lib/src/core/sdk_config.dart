@@ -87,6 +87,10 @@ class SDKConfig {
   /// Publisher app user identifier sent as `user_id` on ad requests.
   final String? userId;
 
+  /// When true, fullscreen video closes automatically after complete/skip.
+  /// Default is false — show companion or last frame with manual close.
+  final bool autoClose;
+
   const SDKConfig({
     required this.baseURL,
     this.enableLogging = true,
@@ -101,6 +105,7 @@ class SDKConfig {
     this.videoPodContinueOnSlotError = true,
     this.videoPodShowCounter = true,
     this.userId,
+    this.autoClose = false,
   });
 
   /// Create SDKConfig from Map
@@ -126,6 +131,7 @@ class SDKConfig {
       videoPodContinueOnSlotError: map['videoPodContinueOnSlotError'] ?? true,
       videoPodShowCounter: map['videoPodShowCounter'] ?? true,
       userId: map['userId'] as String?,
+      autoClose: map['autoClose'] as bool? ?? false,
     );
   }
 
@@ -145,6 +151,7 @@ class SDKConfig {
       'videoPodContinueOnSlotError': videoPodContinueOnSlotError,
       'videoPodShowCounter': videoPodShowCounter,
       if (userId != null) 'userId': userId,
+      'autoClose': autoClose,
     };
   }
 
@@ -168,6 +175,7 @@ class SDKConfigBuilder {
   bool _videoPodContinueOnSlotError = true;
   bool _videoPodShowCounter = true;
   String? _userId;
+  bool _autoClose = false;
 
   /// Set base URL
   SDKConfigBuilder baseURL(String url) {
@@ -238,6 +246,12 @@ class SDKConfigBuilder {
     return this;
   }
 
+  /// Auto-close fullscreen video after complete/skip (default false).
+  SDKConfigBuilder autoClose(bool enabled) {
+    _autoClose = enabled;
+    return this;
+  }
+
   /// Build SDKConfig
   SDKConfig build() {
     return SDKConfig(
@@ -253,6 +267,7 @@ class SDKConfigBuilder {
       videoPodContinueOnSlotError: _videoPodContinueOnSlotError,
       videoPodShowCounter: _videoPodShowCounter,
       userId: _userId,
+      autoClose: _autoClose,
     );
   }
 }

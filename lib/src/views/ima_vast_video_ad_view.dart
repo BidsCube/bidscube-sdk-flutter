@@ -6,11 +6,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'dart:async';
 
-import 'package:http/http.dart' as http;
-
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import 'video_ad_overlay_controls.dart';
+import '../core/companion_tracking.dart';
+import '../core/video_ad_session_controller.dart';
+import '../core/video_ad_request_loader.dart';
 import '../openrtb/video_ad_payload_resolver.dart';
 
 /// Flutter-only VAST playback via Google's IMA package.
@@ -72,14 +73,21 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   final ContentProgressProvider _contentProgressProvider =
       ContentProgressProvider();
 
-  // Parsed VAST metadata (preview is optional).
+  // Parsed VAST metadata (companion is optional).
+  VastCompanionCreative? _companion;
   String? _previewImageUrl;
   String? _endCardClickUrl;
   String _adTitle = '';
-  int? _skipOffsetSeconds;
+  int? _skipOffsetSeconds = Constants.defaultSkipOffsetSeconds;
+  bool _hasNonLinearPostVideo = false;
+
+  late VideoAdSessionController _session;
+  final CompanionTracking _companionTracking = CompanionTracking();
+  final VideoAdRequestLoader _videoAdRequestLoader = VideoAdRequestLoader();
 
   // End card + skip overlay state.
   bool _showEndCard = false;
+  bool _showManualCloseButton = false;
   bool _skipAvailable = false;
   int _skipCountdown = 0;
   Timer? _skipCountdownTimer;
@@ -100,8 +108,19 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _session = _createSession(hasCompanion: false);
     _initializeAdContainer();
     _loadVastAd();
+  }
+
+  bool get _autoClose => BidscubeSDK.config?.autoClose ?? false;
+
+  VideoAdSessionController _createSession({required bool hasCompanion}) {
+    return VideoAdSessionController(
+      autoClose: _autoClose,
+      isRewarded: _isRewarded,
+      hasCompanion: hasCompanion,
+    );
   }
 
   @override
@@ -111,19 +130,17 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     _skipCountdownTimer?.cancel();
     _contentVideoController?.dispose();
 
-    if (_hasStarted &&
-        !_hasCompleted &&
-        !_hasSkipped &&
-        !_hasFailedOrAbortedFlow &&
-        !_showEndCard &&
-        !_hasClosed) {
-      _notifySkipped();
-    }
     if (!_hasClosed) {
-      _notifyClosed();
+      if (_hasStarted &&
+          !_hasCompleted &&
+          !_hasSkipped &&
+          !_hasFailedOrAbortedFlow) {
+        _notifySkipped();
+      }
+      _closeAdSession(syncSession: false);
+    } else {
+      _adsManager?.destroy();
     }
-
-    _adsManager?.destroy();
     super.dispose();
   }
 
@@ -190,24 +207,31 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     }
 
     _adTitle = parsed.adTitle;
+    _companion = parsed.preferredCompanion;
     _previewImageUrl = parsed.previewImageUrl;
     _endCardClickUrl = parsed.endCardClickUrl;
     _skipOffsetSeconds = parsed.skipOffsetSeconds;
+    _hasNonLinearPostVideo = parsed.creatives.any(
+      (creative) => creative is VastNonLinearCreative,
+    );
+    _session = _createSession(hasCompanion: parsed.hasCompanion);
     SDKLogger.info(
       'VAST metadata parsed: skipOffset=${_skipOffsetSeconds ?? 'none'}s, '
-      'title=${_adTitle.isEmpty ? 'n/a' : _adTitle}',
+      'title=${_adTitle.isEmpty ? 'n/a' : _adTitle}, '
+      'companion=${_companion?.resourceType.name ?? 'none'}, '
+      'autoClose=$_autoClose',
     );
   }
 
   void _startSkipCountdown() {
     _skipCountdownTimer?.cancel();
-    final offset = _skipOffsetSeconds;
-    if (offset == null || offset <= 0) {
+    final offset = _skipOffsetSeconds ?? Constants.defaultSkipOffsetSeconds;
+    if (offset <= 0) {
       return;
     }
 
     void tick() {
-      if (!mounted || _showEndCard) {
+      if (!mounted || _showEndCard || _showManualCloseButton) {
         return;
       }
 
@@ -229,7 +253,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
 
     tick();
     _skipCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted || _showEndCard) {
+      if (!mounted || _showEndCard || _showManualCloseButton) {
         timer.cancel();
         return;
       }
@@ -245,26 +269,48 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     _skipCountdownTimer = null;
   }
 
-  bool get _hasPreview {
-    final url = _previewImageUrl?.trim();
-    return url != null && url.isNotEmpty;
+  void _releasePlayerResources() {
+    _session.releasePlayer();
+    final manager = _adsManager;
+    if (manager == null) return;
+    _adsManager = null;
+    manager.destroy();
   }
 
-  /// After video ends: show end card when preview exists, otherwise close.
-  void _finishVideoPlayback() {
-    if (!mounted || _showEndCard || _hasClosed) {
+  void _applyPostVideoUi() {
+    if (!mounted || _hasClosed) return;
+    _stopSkipCountdown();
+
+    if (_session.closed) {
+      _closeAdSession(syncSession: false);
       return;
     }
-    _stopSkipCountdown();
-    if (_hasPreview) {
-      setState(() => _showEndCard = true);
-    } else {
-      _dismissAd();
+
+    setState(() {
+      _showEndCard = _session.showEndCard;
+      _showManualCloseButton = _session.showManualCloseButton;
+    });
+
+    if (_session.showEndCard) {
+      _releasePlayerResources();
+      unawaited(_companionTracking.fireViewTracking(_companion));
     }
+  }
+
+  void _onLinearVideoFinished({required bool skipped}) {
+    if (skipped) {
+      _session.onLinearVideoSkipped();
+    } else {
+      _session.onLinearVideoComplete(
+        holdForInteractiveContent: _hasNonLinearPostVideo,
+      );
+    }
+    _applyPostVideoUi();
   }
 
   Future<void> _handleEndCardClick() async {
     widget.callback?.onAdClicked(widget.placementId);
+    await _companionTracking.fireClickTracking(_companion);
     final url = _endCardClickUrl;
     if (url == null || url.isEmpty) {
       return;
@@ -276,23 +322,26 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  void _dismissAd() {
-    _stopSkipCountdown();
-    _adsManager?.destroy();
-    _adsManager = null;
-
-    if (_hasStarted &&
-        !_hasCompleted &&
-        !_hasSkipped &&
-        !_hasFailedOrAbortedFlow) {
-      _notifySkipped();
+  void _closeAdSession({bool syncSession = true}) {
+    if (_hasClosed) return;
+    if (syncSession) {
+      _session.closeSession();
     }
-
+    _stopSkipCountdown();
+    _releasePlayerResources();
     _notifyClosed();
     if (mounted) {
-      setState(() => _isDismissed = true);
+      setState(() {
+        _isDismissed = true;
+        _showEndCard = false;
+        _showManualCloseButton = false;
+      });
     }
     widget.onDismiss?.call();
+  }
+
+  void _handleManualClose() {
+    _closeAdSession();
   }
 
   Future<void> _handleSkipTap() async {
@@ -316,10 +365,9 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   }
 
   void _forceSkip() {
+    if (_hasSkipped) return;
     _notifySkipped();
-    _adsManager?.destroy();
-    _adsManager = null;
-    _finishVideoPlayback();
+    _onLinearVideoFinished(skipped: true);
   }
 
   void _initializeAdContainer() {
@@ -349,11 +397,11 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
                       break;
                     case AdEventType.complete:
                       _notifyCompleted();
-                      _finishVideoPlayback();
+                      _onLinearVideoFinished(skipped: false);
                       break;
                     case AdEventType.skipped:
                       _notifySkipped();
-                      _finishVideoPlayback();
+                      _onLinearVideoFinished(skipped: true);
                       break;
                     case AdEventType.skippableStateChanged:
                       if (mounted) {
@@ -361,13 +409,11 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
                       }
                       break;
                     case AdEventType.allAdsCompleted:
-                      _adsManager?.destroy();
-                      _adsManager = null;
-                      if (!_showEndCard && !_hasClosed && _hasStarted) {
-                        _finishVideoPlayback();
-                      } else if (!_showEndCard && !_hasClosed) {
-                        _notifyClosed();
-                        widget.onDismiss?.call();
+                      _session.endInteractivePostVideoContent();
+                      if (!_hasClosed && (_hasCompleted || _hasSkipped)) {
+                        _applyPostVideoUi();
+                      } else if (!_hasClosed && _autoClose) {
+                        _closeAdSession();
                       }
                       break;
                     case AdEventType.contentPauseRequested:
@@ -388,10 +434,12 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
                     'IMA AdErrorEvent: ${event.error.message}',
                     null,
                   );
+                  _session.markFailed();
                   _notifyFailed(
                     'IMA_ERROR',
                     event.error.message ?? 'Unknown IMA error',
                   );
+                  _closeAdSession(syncSession: false);
                   _resumeContent();
                 },
               ),
@@ -444,67 +492,74 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         throw Exception('Failed to build API URL for VAST request');
       }
 
-      final response = await http.get(
-        Uri.parse(apiURL),
+      final config = BidscubeSDK.config ?? SDKConfig(baseURL: widget.baseUrl);
+      final loadResult = await _videoAdRequestLoader.loadFromUrl(
+        apiURL: apiURL,
+        config: config,
         headers: await _requestHeaders(),
       );
 
-      if (response.statusCode == 200 && response.body.isNotEmpty) {
-        final config = BidscubeSDK.config ?? SDKConfig(baseURL: widget.baseUrl);
-        final resolved = VideoAdPayloadResolver.resolve(
-          content: response.body,
-          config: config,
+      if (!loadResult.isSuccess) {
+        SDKLogger.error(
+          'VAST ad request failed: ${loadResult.errorCode} ${loadResult.errorMessage}',
+          null,
         );
-
-        if (resolved != null) {
-          if (resolved.position != AdPosition.unknown && mounted) {
-            setState(() => _currentPosition = resolved.position);
-          }
-
-          final overrideCallback = widget.callback?.onAdRenderOverride;
-          final admForOverride =
-              resolved.adsResponse ?? resolved.vastXml ?? resolved.adTagUrl;
-
-          if (overrideCallback != null &&
-              admForOverride != null &&
-              admForOverride.isNotEmpty) {
-            SDKLogger.info(
-              'Calling onAdRenderOverride for placement ${widget.placementId}',
-            );
-            overrideCallback(
-              widget.placementId,
-              admForOverride,
-              resolved.position != AdPosition.unknown
-                  ? resolved.position
-                  : _currentPosition,
-            );
-            return;
-          }
-
-          if (resolved.adTagUrl != null && resolved.adTagUrl!.isNotEmpty) {
-            setState(() => _isLoading = false);
-            await Future.delayed(const Duration(milliseconds: 500));
-            await _requestAdsByAdTagUrl(
-              _adDisplayContainer,
-              resolved.adTagUrl!,
-            );
-            return;
-          }
-
-          final inlineVast = resolved.adsResponse ?? resolved.vastXml;
-          if (inlineVast != null && inlineVast.isNotEmpty) {
-            _parseVastMetadata(inlineVast);
-            setState(() => _isLoading = false);
-            await Future.delayed(const Duration(milliseconds: 500));
-            await _requestAds(_adDisplayContainer, inlineVast);
-            return;
-          }
-        }
-
-        throw Exception('No playable VAST payload received from server');
-      } else {
-        throw Exception('No VAST XML received from server');
+        setState(() {
+          _hasError = true;
+          _isLoading = false;
+        });
+        _notifyFailed(
+          loadResult.errorCode ?? 'LOAD_ERROR',
+          loadResult.errorMessage ?? 'Video ad request failed',
+        );
+        return;
       }
+
+      final resolved = loadResult.payload!;
+      if (resolved.position != AdPosition.unknown && mounted) {
+        setState(() => _currentPosition = resolved.position);
+      }
+
+      final overrideCallback = widget.callback?.onAdRenderOverride;
+      final admForOverride =
+          resolved.adsResponse ?? resolved.vastXml ?? resolved.adTagUrl;
+
+      if (overrideCallback != null &&
+          admForOverride != null &&
+          admForOverride.isNotEmpty) {
+        SDKLogger.info(
+          'Calling onAdRenderOverride for placement ${widget.placementId}',
+        );
+        overrideCallback(
+          widget.placementId,
+          admForOverride,
+          resolved.position != AdPosition.unknown
+              ? resolved.position
+              : _currentPosition,
+        );
+        return;
+      }
+
+      if (resolved.adTagUrl != null && resolved.adTagUrl!.isNotEmpty) {
+        setState(() => _isLoading = false);
+        await Future.delayed(const Duration(milliseconds: 500));
+        await _requestAdsByAdTagUrl(
+          _adDisplayContainer,
+          resolved.adTagUrl!,
+        );
+        return;
+      }
+
+      final inlineVast = resolved.adsResponse ?? resolved.vastXml;
+      if (inlineVast != null && inlineVast.isNotEmpty) {
+        _parseVastMetadata(inlineVast);
+        setState(() => _isLoading = false);
+        await Future.delayed(const Duration(milliseconds: 500));
+        await _requestAds(_adDisplayContainer, inlineVast);
+        return;
+      }
+
+      throw Exception('No playable VAST payload received from server');
     } catch (e) {
       SDKLogger.error('VAST ad request failed', e);
       setState(() {
@@ -690,6 +745,14 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   }
 
   Widget _buildVideoControlsOverlay(BuildContext context) {
+    if (!_hasStarted || _showEndCard) {
+      return const SizedBox.shrink();
+    }
+    if (!_showManualCloseButton &&
+        (_skipOffsetSeconds ?? Constants.defaultSkipOffsetSeconds) <= 0) {
+      return const SizedBox.shrink();
+    }
+
     final topPadding = widget.position == AdPosition.fullScreen
         ? MediaQuery.paddingOf(context).top + 8
         : 8.0;
@@ -697,28 +760,52 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
         ? MediaQuery.paddingOf(context).bottom
         : 0.0;
 
-    if (_skipOffsetSeconds == null || !_hasStarted) {
-      return const SizedBox.shrink();
-    }
-
     return PointerInterceptor(
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Hide the IMA native skip button (bottom-right inside platform view).
           Positioned(
             right: 0,
             bottom: bottomPadding,
             child: Container(width: 132, height: 52, color: Colors.black),
           ),
-          VideoAdSkipButton(
-            isAvailable: _skipAvailable,
-            countdownSeconds: _skipCountdown,
-            onPressed: _handleSkipTap,
-            topPadding: topPadding,
-          ),
+          if (_showManualCloseButton)
+            Positioned(
+              top: topPadding,
+              right: 12,
+              child: EndCardImageCloseButton(onPressed: _handleManualClose),
+            ),
+          if (!_showManualCloseButton)
+            VideoAdSkipButton(
+              isAvailable: _skipAvailable,
+              countdownSeconds: _skipCountdown,
+              onPressed: _handleSkipTap,
+              topPadding: topPadding,
+            ),
         ],
       ),
+    );
+  }
+
+  bool get _isFullScreenLayout =>
+      widget.position == AdPosition.fullScreen ||
+      _currentPosition == AdPosition.fullScreen;
+
+  Size _layoutSize(BoxConstraints constraints) {
+    if (_isFullScreenLayout &&
+        constraints.hasBoundedWidth &&
+        constraints.hasBoundedHeight) {
+      return Size(constraints.maxWidth, constraints.maxHeight);
+    }
+    return Size(widget.width, widget.height);
+  }
+
+  Widget _wrapLayout(Widget child, Size size) {
+    if (_isFullScreenLayout) {
+      return SizedBox(width: size.width, height: size.height, child: child);
+    }
+    return Center(
+      child: SizedBox(width: size.width, height: size.height, child: child),
     );
   }
 
@@ -732,90 +819,110 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       return SizedBox(width: widget.width, height: widget.height);
     }
 
-    if (_showEndCard) {
-      return VideoEndCardView(
-        previewImageUrl: _previewImageUrl,
-        adTitle: _adTitle,
-        clickUrl: _endCardClickUrl,
-        width: widget.width,
-        height: widget.height,
-        onClose: _dismissAd,
-        onTap: _endCardClickUrl != null ? _handleEndCardClick : null,
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = _layoutSize(constraints);
 
-    final positionStyle = _getPositionBasedStyle();
+        if (_showEndCard) {
+          return _wrapLayout(
+            VideoEndCardView(
+              companion: _companion,
+              previewImageUrl: _previewImageUrl,
+              adTitle: _adTitle,
+              clickUrl: _endCardClickUrl,
+              width: size.width,
+              height: size.height,
+              onClose: _handleManualClose,
+              onTap: _endCardClickUrl != null ? _handleEndCardClick : null,
+            ),
+            size,
+          );
+        }
 
-    if (_isLoading) {
-      return Container(
-        width: widget.width,
-        height: widget.height,
-        decoration: BoxDecoration(
-          color: positionStyle.backgroundColor,
-          borderRadius: BorderRadius.circular(positionStyle.borderRadius ?? 0),
-          border: positionStyle.border,
-          boxShadow: positionStyle.boxShadow,
-        ),
-        child: const Center(child: CircularProgressIndicator()),
-      );
-    }
+        final positionStyle = _getPositionBasedStyle();
 
-    if (_hasError) {
-      return Container(
-        width: widget.width,
-        height: widget.height,
-        decoration: BoxDecoration(
-          color: positionStyle.backgroundColor,
-          borderRadius: BorderRadius.circular(positionStyle.borderRadius ?? 0),
-          border: positionStyle.border,
-          boxShadow: positionStyle.boxShadow,
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.block, color: Colors.grey, size: 48),
-              const SizedBox(height: 8),
-              const Text(
-                'Ad not loaded or placement ID does not exist',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontWeight: FontWeight.bold,
+        if (_isLoading) {
+          return _wrapLayout(
+            Container(
+              decoration: BoxDecoration(
+                color: positionStyle.backgroundColor,
+                borderRadius: BorderRadius.circular(
+                  positionStyle.borderRadius ?? 0,
                 ),
-                textAlign: TextAlign.center,
+                border: positionStyle.border,
+                boxShadow: positionStyle.boxShadow,
               ),
-            ],
-          ),
-        ),
-      );
-    }
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+            size,
+          );
+        }
 
-    return Container(
-      width: widget.width,
-      height: widget.height,
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(widget.borderRadius ?? 0.0),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(widget.borderRadius ?? 0.0),
-        child: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            Center(
-              child: SizedBox(
-                width: widget.width,
-                height: widget.height,
-                child: _adDisplayContainer,
+        if (_hasError) {
+          return _wrapLayout(
+            Container(
+              decoration: BoxDecoration(
+                color: positionStyle.backgroundColor,
+                borderRadius: BorderRadius.circular(
+                  positionStyle.borderRadius ?? 0,
+                ),
+                border: positionStyle.border,
+                boxShadow: positionStyle.boxShadow,
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.block, color: Colors.grey, size: 48),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Ad not loaded or placement ID does not exist',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
             ),
-            if (_shouldShowContentVideo &&
-                _contentVideoController?.value.isInitialized == true)
-              Center(child: VideoPlayer(_contentVideoController!)),
-            _buildVideoControlsOverlay(context),
-          ],
-        ),
-      ),
+            size,
+          );
+        }
+
+        return _wrapLayout(
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(widget.borderRadius ?? 0.0),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(widget.borderRadius ?? 0.0),
+              child: Stack(
+                fit: StackFit.expand,
+                alignment: Alignment.center,
+                children: <Widget>[
+                  Positioned.fill(
+                    child: Center(
+                      child: SizedBox(
+                        width: size.width,
+                        height: size.height,
+                        child: _adDisplayContainer,
+                      ),
+                    ),
+                  ),
+                  if (_shouldShowContentVideo &&
+                      _contentVideoController?.value.isInitialized == true)
+                    Center(child: VideoPlayer(_contentVideoController!)),
+                  _buildVideoControlsOverlay(context),
+                ],
+              ),
+            ),
+          ),
+          size,
+        );
+      },
     );
   }
 }

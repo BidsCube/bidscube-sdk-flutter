@@ -1,5 +1,7 @@
 import 'package:xml/xml.dart';
 
+import 'constants.dart';
+
 /// VAST (Video Ad Serving Template) parser for handling video ads.
 class VastParser {
   /// Parse VAST XML and extract video ad information.
@@ -111,7 +113,11 @@ class VastParser {
 
     String? staticResourceUrl;
     String staticResourceType = '';
+    String? htmlResource;
+    String? iframeResourceUrl;
     String? clickThroughUrl;
+    final clickTrackingUrls = <String>[];
+    final viewTrackingUrls = <String>[];
 
     if (companionElement != null) {
       final staticResourceElement = companionElement
@@ -123,18 +129,59 @@ class VastParser {
             staticResourceElement.getAttribute('creativeType') ?? '';
       }
 
+      final htmlResourceElement = companionElement
+          .findElements('HTMLResource')
+          .firstOrNull;
+      if (htmlResourceElement != null) {
+        htmlResource = htmlResourceElement.innerText.trim();
+      }
+
+      final iframeResourceElement = companionElement
+          .findElements('IFrameResource')
+          .firstOrNull;
+      if (iframeResourceElement != null) {
+        iframeResourceUrl = iframeResourceElement.innerText.trim();
+      }
+
       final clickThroughElement = companionElement
           .findElements('CompanionClickThrough')
           .firstOrNull;
       if (clickThroughElement != null) {
         clickThroughUrl = clickThroughElement.innerText.trim();
       }
+
+      for (final clickTracking in companionElement.findElements(
+        'CompanionClickTracking',
+      )) {
+        final url = clickTracking.innerText.trim();
+        if (url.isNotEmpty) {
+          clickTrackingUrls.add(url);
+        }
+      }
+
+      final trackingEventsElement = companionElement
+          .findElements('TrackingEvents')
+          .firstOrNull;
+      if (trackingEventsElement != null) {
+        for (final tracking in trackingEventsElement.findElements('Tracking')) {
+          final event = tracking.getAttribute('event') ?? '';
+          final url = tracking.innerText.trim();
+          if (url.isEmpty) continue;
+          if (event == 'creativeView' || event == 'start') {
+            viewTrackingUrls.add(url);
+          }
+        }
+      }
     }
 
     return VastCompanionCreative(
       staticResourceUrl: staticResourceUrl,
       staticResourceType: staticResourceType,
+      htmlResource: htmlResource,
+      iframeResourceUrl: iframeResourceUrl,
       clickThroughUrl: clickThroughUrl,
+      clickTrackingUrls: clickTrackingUrls,
+      viewTrackingUrls: viewTrackingUrls,
     );
   }
 
@@ -295,27 +342,35 @@ class VastAd {
   });
 
   /// Preview image URL from the first Companion > StaticResource, if present.
-  String? get previewImageUrl {
+  String? get previewImageUrl => preferredCompanion?.staticResourceUrl;
+
+  /// Preferred companion by priority: HTML, IFrame, Static image.
+  VastCompanionCreative? get preferredCompanion {
+    VastCompanionCreative? html;
+    VastCompanionCreative? iframe;
+    VastCompanionCreative? staticImage;
+
     for (final creative in creatives) {
-      if (creative is VastCompanionCreative) {
-        final url = creative.staticResourceUrl;
-        if (url != null && url.isNotEmpty) {
-          return url;
-        }
+      if (creative is! VastCompanionCreative) continue;
+      if (creative.hasHtml) {
+        html ??= creative;
+      } else if (creative.hasIframe) {
+        iframe ??= creative;
+      } else if (creative.hasStaticImage) {
+        staticImage ??= creative;
       }
     }
-    return null;
+
+    return html ?? iframe ?? staticImage;
   }
+
+  bool get hasCompanion => preferredCompanion != null;
 
   /// Click URL for the end card — CompanionClickThrough first, then Linear ClickThrough.
   String? get endCardClickUrl {
-    for (final creative in creatives) {
-      if (creative is VastCompanionCreative) {
-        final url = creative.clickThroughUrl;
-        if (url != null && url.isNotEmpty) {
-          return url;
-        }
-      }
+    final companionClick = preferredCompanion?.clickThroughUrl;
+    if (companionClick != null && companionClick.isNotEmpty) {
+      return companionClick;
     }
 
     for (final creative in creatives) {
@@ -331,8 +386,19 @@ class VastAd {
     return null;
   }
 
-  /// Skip offset in seconds from Linear skipoffset attribute.
-  int? get skipOffsetSeconds {
+  /// Skip offset in seconds from Linear skipoffset attribute, or [Constants.defaultSkipOffsetSeconds].
+  int get skipOffsetSeconds {
+    for (final creative in creatives) {
+      if (creative is VastLinearCreative) {
+        return creative.skipOffsetSeconds ??
+            Constants.defaultSkipOffsetSeconds;
+      }
+    }
+    return Constants.defaultSkipOffsetSeconds;
+  }
+
+  /// Raw skipoffset from VAST when explicitly set on Linear creative.
+  int? get explicitSkipOffsetSeconds {
     for (final creative in creatives) {
       if (creative is VastLinearCreative) {
         return creative.skipOffsetSeconds;
@@ -362,18 +428,43 @@ class VastLinearCreative extends VastCreative {
   });
 }
 
-/// Companion creative (end-card preview image).
+/// Companion creative (end-card preview).
 class VastCompanionCreative extends VastCreative {
   final String? staticResourceUrl;
   final String staticResourceType;
+  final String? htmlResource;
+  final String? iframeResourceUrl;
   final String? clickThroughUrl;
+  final List<String> clickTrackingUrls;
+  final List<String> viewTrackingUrls;
 
   VastCompanionCreative({
     this.staticResourceUrl,
     this.staticResourceType = '',
+    this.htmlResource,
+    this.iframeResourceUrl,
     this.clickThroughUrl,
+    this.clickTrackingUrls = const [],
+    this.viewTrackingUrls = const [],
   });
+
+  bool get hasHtml => htmlResource != null && htmlResource!.trim().isNotEmpty;
+
+  bool get hasIframe =>
+      iframeResourceUrl != null && iframeResourceUrl!.trim().isNotEmpty;
+
+  bool get hasStaticImage =>
+      staticResourceUrl != null && staticResourceUrl!.trim().isNotEmpty;
+
+  VastCompanionResourceType get resourceType {
+    if (hasHtml) return VastCompanionResourceType.html;
+    if (hasIframe) return VastCompanionResourceType.iframe;
+    if (hasStaticImage) return VastCompanionResourceType.staticImage;
+    return VastCompanionResourceType.none;
+  }
 }
+
+enum VastCompanionResourceType { none, html, iframe, staticImage }
 
 /// Non-linear creative (banner/image ads).
 class VastNonLinearCreative extends VastCreative {

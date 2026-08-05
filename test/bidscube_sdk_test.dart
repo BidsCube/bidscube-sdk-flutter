@@ -23,6 +23,15 @@ void main() {
       expect(config.defaultAdPosition, AdPosition.header);
       expect(config.enableTestMode, true);
       expect(config.userId, 'publisher-user-42');
+      expect(config.autoClose, false);
+    });
+
+    test('SDKConfig autoClose defaults to false and can be set explicitly', () {
+      expect(SDKConfig(baseURL: 'https://example.com').autoClose, false);
+      expect(
+        SDKConfig.builder().autoClose(true).build().autoClose,
+        isTrue,
+      );
     });
 
     test('SDKConfig should convert to map correctly', () {
@@ -33,6 +42,7 @@ void main() {
       expect(map['defaultAdPosition'], 'header');
       expect(map['enableTestMode'], true);
       expect(map['userId'], 'publisher-user-42');
+      expect(map['autoClose'], false);
     });
 
     test('SDKConfig should be created from map correctly', () {
@@ -54,6 +64,7 @@ void main() {
       expect(configFromMap.defaultAdPosition, AdPosition.footer);
       expect(configFromMap.enableTestMode, false);
       expect(configFromMap.userId, 'user-from-map');
+      expect(configFromMap.autoClose, false);
     });
 
     test('AdType should have correct string values', () {
