@@ -12,7 +12,6 @@ import 'video_ad_overlay_controls.dart';
 import '../core/companion_tracking.dart';
 import '../core/video_ad_session_controller.dart';
 import '../core/video_ad_request_loader.dart';
-import '../openrtb/video_ad_payload_resolver.dart';
 
 /// Flutter-only VAST playback via Google's IMA package.
 ///

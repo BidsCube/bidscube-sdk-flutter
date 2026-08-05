@@ -1,3 +1,7 @@
+## 1.2.9
+
+* Fix unused import in `ImaVastVideoAdView` so `flutter analyze --no-fatal-infos` passes in CI.
+
 ## 1.2.8
 
 * **`SDKConfig.autoClose`**: optional fullscreen video auto-close after complete/skip (default `false`); when false, show VAST Companion end card or last frame with manual close.
