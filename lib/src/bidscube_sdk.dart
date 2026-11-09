@@ -4,6 +4,7 @@ import 'core/callbacks.dart';
 import 'core/ad_position.dart';
 import 'core/ad_type.dart';
 import 'core/logger.dart';
+import 'core/video_ui_policy.dart';
 import 'platform/bidscube_platform.dart';
 import 'platform/method_channel_bidscube.dart';
 import 'platform/flutter_only_bidscube.dart';
@@ -14,6 +15,18 @@ class BidscubeSDK {
   static bool _isInitialized = false;
   static SDKConfig? _config;
   static bool _useFlutterOnly = false;
+  static VideoFullscreenPolicy _videoFullscreenPolicy = VideoFullscreenPolicy.auto;
+
+  /// Current video fullscreen policy. Default [VideoFullscreenPolicy.auto]:
+  /// Android TV / Apple TV always fullscreen; phone fullscreen for
+  /// [AdPosition.fullScreen] and [AdPosition.unknown].
+  static VideoFullscreenPolicy get videoFullscreenPolicy =>
+      _videoFullscreenPolicy;
+
+  /// Override fullscreen behavior for video ads (phone and TV).
+  static void setVideoFullscreenPolicy(VideoFullscreenPolicy policy) {
+    _videoFullscreenPolicy = policy;
+  }
 
   /// Initialize the BidsCube SDK
   ///
@@ -252,6 +265,7 @@ class BidscubeSDK {
     _platform.cleanup();
     _isInitialized = false;
     _config = null;
+    _videoFullscreenPolicy = VideoFullscreenPolicy.auto;
   }
 
   /// Get SKAdNetwork IDs from Info.plist

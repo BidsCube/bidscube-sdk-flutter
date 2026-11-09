@@ -14,11 +14,18 @@ class VideoAdSkipButton extends StatelessWidget {
     required this.countdownSeconds,
     required this.onPressed,
     this.topPadding = 8,
+    this.enlarged = false,
   });
+
+  final bool enlarged;
 
   @override
   Widget build(BuildContext context) {
     final label = isAvailable ? 'Skip' : 'Skip in $countdownSeconds';
+    final radius = enlarged ? 28.0 : 20.0;
+    final fontSize = enlarged ? 22.0 : 14.0;
+    final horizontal = enlarged ? 28.0 : 16.0;
+    final vertical = enlarged ? 16.0 : 10.0;
 
     return Positioned(
       top: topPadding,
@@ -26,17 +33,22 @@ class VideoAdSkipButton extends StatelessWidget {
       child: PointerInterceptor(
         child: Material(
           color: Colors.black.withValues(alpha: 0.72),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(radius),
           child: InkWell(
+            autofocus: enlarged && isAvailable,
+            focusColor: Colors.white24,
             onTap: isAvailable ? onPressed : null,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(radius),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontal,
+                vertical: vertical,
+              ),
               child: Text(
                 label,
                 style: TextStyle(
                   color: isAvailable ? Colors.white : Colors.white70,
-                  fontSize: 14,
+                  fontSize: fontSize,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -51,11 +63,18 @@ class VideoAdSkipButton extends StatelessWidget {
 /// Close control placed on the preview image (end card only).
 class EndCardImageCloseButton extends StatelessWidget {
   final VoidCallback onPressed;
+  final bool enlarged;
 
-  const EndCardImageCloseButton({super.key, required this.onPressed});
+  const EndCardImageCloseButton({
+    super.key,
+    required this.onPressed,
+    this.enlarged = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final size = enlarged ? 56.0 : 32.0;
+    final iconSize = enlarged ? 28.0 : 18.0;
     return Positioned(
       top: 10,
       right: 10,
@@ -63,12 +82,13 @@ class EndCardImageCloseButton extends StatelessWidget {
         color: Colors.black.withValues(alpha: 0.55),
         shape: const CircleBorder(),
         child: InkWell(
+          autofocus: enlarged,
           onTap: onPressed,
           customBorder: const CircleBorder(),
-          child: const SizedBox(
-            width: 32,
-            height: 32,
-            child: Icon(Icons.close, color: Colors.white, size: 18),
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Icon(Icons.close, color: Colors.white, size: iconSize),
           ),
         ),
       ),

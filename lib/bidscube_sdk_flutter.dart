@@ -3,8 +3,10 @@
 /// A Flutter SDK for displaying banner/image, video, and native ads on mobile.
 ///
 /// Officially documented mobile targets: Android and iOS.
+/// Android TV and Apple TV use the same Flutter video path with fullscreen
+/// and remote-friendly controls (`VideoFullscreenPolicy.auto`).
 /// Flutter-only mode is the recommended production path for Android.
-/// Web/Desktop are not official production targets in v1.2.9.
+/// Web/Desktop are not official production targets in v1.2.10.
 ///
 /// Banner/image creatives are exposed through [BidscubeSDK.getBannerAdView].
 library;
@@ -18,6 +20,7 @@ export 'src/core/callbacks.dart';
 export 'src/core/logger.dart';
 export 'src/core/position_style.dart';
 export 'src/core/video_ad_format.dart';
+export 'src/core/video_ui_policy.dart';
 
 // Ad Views
 export 'src/views/webview_image_ad_view.dart';

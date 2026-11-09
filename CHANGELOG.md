@@ -1,3 +1,11 @@
+## 1.2.10
+
+* **TV video policy** (parity with Android TV / Apple TV): `BidscubeSDK.setVideoFullscreenPolicy` (`auto` / `forceFullscreen` / `forceWindowed`). `auto` opens video fullscreen on Android TV, Fire TV, and Apple TV.
+* **Rewarded:** no Skip control. System back opens *Leave video?* — Leave closes without `onUserRewarded`; Keep watching resumes playback.
+* **Interstitial:** back is ignored until Skip is armed, then back skips. Skip is available immediately when VAST `skipoffset` is `0`.
+* **Stall:** if playback does not start within 15s, the session fails with `PLAYBACK_STALL` and closes.
+* Larger, focusable Skip / Close controls on TV.
+
 ## 1.2.9
 
 * Fix unused import in `ImaVastVideoAdView` so `flutter analyze --no-fatal-infos` passes in CI.

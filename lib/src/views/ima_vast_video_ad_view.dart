@@ -10,6 +10,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import 'video_ad_overlay_controls.dart';
 import '../core/companion_tracking.dart';
+import '../core/television_detector.dart';
 import '../core/video_ad_session_controller.dart';
 import '../core/video_ad_request_loader.dart';
 
@@ -102,14 +103,24 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   bool _hasRewarded = false;
   bool _hasFailedOrAbortedFlow = false;
   bool _isDismissed = false;
+  bool _isTelevision = false;
+  bool _leavePromptOpen = false;
+  Timer? _playbackStallTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _session = _createSession(hasCompanion: false);
+    unawaited(_detectTelevision());
     _initializeAdContainer();
     _loadVastAd();
+  }
+
+  Future<void> _detectTelevision() async {
+    final television = await TelevisionDetector.isTelevision();
+    if (!mounted || television == _isTelevision) return;
+    setState(() => _isTelevision = television);
   }
 
   bool get _autoClose => BidscubeSDK.config?.autoClose ?? false;
@@ -127,10 +138,12 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     WidgetsBinding.instance.removeObserver(this);
     _contentProgressTimer?.cancel();
     _skipCountdownTimer?.cancel();
+    _playbackStallTimer?.cancel();
     _contentVideoController?.dispose();
 
     if (!_hasClosed) {
-      if (_hasStarted &&
+      if (!_isRewarded &&
+          _hasStarted &&
           !_hasCompleted &&
           !_hasSkipped &&
           !_hasFailedOrAbortedFlow) {
@@ -160,8 +173,11 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
   void _notifyStarted() {
     if (_hasStarted) return;
     _hasStarted = true;
+    _playbackStallTimer?.cancel();
     _videoStartedAt = DateTime.now();
-    _startSkipCountdown();
+    if (VideoUiPolicy.skipAllowed(isRewarded: _isRewarded)) {
+      _startSkipCountdown();
+    }
     widget.callback?.onVideoAdStarted(widget.placementId);
   }
 
@@ -222,10 +238,104 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     );
   }
 
+  void _armPlaybackStallWatch() {
+    _playbackStallTimer?.cancel();
+    _playbackStallTimer = Timer(
+      const Duration(seconds: Constants.defaultSkipOffsetSeconds),
+      () {
+        if (!mounted || _hasStarted || _hasClosed || _hasFailedOrAbortedFlow) {
+          return;
+        }
+        SDKLogger.error(
+          'Playback did not start within ${Constants.defaultSkipOffsetSeconds}s',
+          null,
+        );
+        _session.markFailed();
+        _notifyFailed(
+          'PLAYBACK_STALL',
+          'Playback did not start within ${Constants.defaultSkipOffsetSeconds}s',
+        );
+        _closeAdSession(syncSession: false);
+      },
+    );
+  }
+
+  Future<void> _handleSystemBack(BuildContext context) async {
+    if (_hasClosed || _leavePromptOpen) return;
+    if (_showEndCard || _showManualCloseButton) {
+      _handleManualClose();
+      return;
+    }
+    if (_isRewarded && _hasStarted && !_hasCompleted) {
+      await _showRewardedLeavePrompt(context);
+      return;
+    }
+    if (!_isRewarded && _skipAvailable) {
+      await _handleSkipTap();
+    }
+  }
+
+  Future<void> _showRewardedLeavePrompt(BuildContext context) async {
+    if (_leavePromptOpen || !mounted) return;
+    _leavePromptOpen = true;
+    try {
+      await _adsManager?.pause();
+    } catch (e) {
+      SDKLogger.warning('IMA pause() failed: $e');
+    }
+    if (!context.mounted) {
+      _leavePromptOpen = false;
+      return;
+    }
+    final leave = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Leave video?'),
+          content: const Text(
+            'If you leave now, you will not receive a reward.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Leave'),
+            ),
+            TextButton(
+              autofocus: _isTelevision,
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep watching'),
+            ),
+          ],
+        );
+      },
+    );
+    _leavePromptOpen = false;
+    if (!mounted) return;
+    if (leave == true) {
+      _closeAdSession();
+      return;
+    }
+    try {
+      await _adsManager?.resume();
+    } catch (e) {
+      SDKLogger.warning('IMA resume() failed: $e');
+    }
+  }
+
   void _startSkipCountdown() {
+    if (!VideoUiPolicy.skipAllowed(isRewarded: _isRewarded)) {
+      return;
+    }
     _skipCountdownTimer?.cancel();
     final offset = _skipOffsetSeconds ?? Constants.defaultSkipOffsetSeconds;
     if (offset <= 0) {
+      if (mounted) {
+        setState(() {
+          _skipCountdown = 0;
+          _skipAvailable = true;
+        });
+      }
       return;
     }
 
@@ -388,6 +498,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
                   switch (event.type) {
                     case AdEventType.loaded:
                       _notifyLoaded();
+                      _armPlaybackStallWatch();
                       manager.start();
                       break;
                     case AdEventType.started:
@@ -403,9 +514,8 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
                       _onLinearVideoFinished(skipped: true);
                       break;
                     case AdEventType.skippableStateChanged:
-                      if (mounted) {
-                        setState(() => _skipAvailable = true);
-                      }
+                      if (_isRewarded || !mounted) break;
+                      setState(() => _skipAvailable = true);
                       break;
                     case AdEventType.allAdsCompleted:
                       _session.endInteractivePostVideoContent();
@@ -747,8 +857,10 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
     if (!_hasStarted || _showEndCard) {
       return const SizedBox.shrink();
     }
-    if (!_showManualCloseButton &&
-        (_skipOffsetSeconds ?? Constants.defaultSkipOffsetSeconds) <= 0) {
+    if (_isRewarded && !_showManualCloseButton) {
+      return const SizedBox.shrink();
+    }
+    if (!_showManualCloseButton && !_skipAvailable && _skipCountdown <= 0) {
       return const SizedBox.shrink();
     }
 
@@ -772,23 +884,31 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
             Positioned(
               top: topPadding,
               right: 12,
-              child: EndCardImageCloseButton(onPressed: _handleManualClose),
+              child: EndCardImageCloseButton(
+                onPressed: _handleManualClose,
+                enlarged: _isTelevision,
+              ),
             ),
-          if (!_showManualCloseButton)
+          if (!_showManualCloseButton && !_isRewarded)
             VideoAdSkipButton(
               isAvailable: _skipAvailable,
               countdownSeconds: _skipCountdown,
               onPressed: _handleSkipTap,
               topPadding: topPadding,
+              enlarged: _isTelevision,
             ),
         ],
       ),
     );
   }
 
-  bool get _isFullScreenLayout =>
-      widget.position == AdPosition.fullScreen ||
-      _currentPosition == AdPosition.fullScreen;
+  bool get _isFullScreenLayout => VideoUiPolicy.shouldShowFullscreen(
+        policy: BidscubeSDK.videoFullscreenPolicy,
+        isTelevision: _isTelevision,
+        position: _currentPosition == AdPosition.unknown
+            ? widget.position
+            : _currentPosition,
+      );
 
   Size _layoutSize(BoxConstraints constraints) {
     if (_isFullScreenLayout &&
@@ -818,7 +938,13 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
       return SizedBox(width: widget.width, height: widget.height);
     }
 
-    return LayoutBuilder(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        unawaited(_handleSystemBack(context));
+      },
+      child: LayoutBuilder(
       builder: (context, constraints) {
         final size = _layoutSize(constraints);
 
@@ -922,6 +1048,7 @@ class _ImaVastVideoAdViewState extends State<ImaVastVideoAdView>
           size,
         );
       },
+    ),
     );
   }
 }
